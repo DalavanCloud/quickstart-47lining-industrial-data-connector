@@ -1,0 +1,11 @@
+fieldset.inactive {
+    opacity: 0.5;
+    z-index: -10;
+    pointer-events: none;
+}
+
+.grid-loader {
+    position: absolute;
+    left: 35%;
+    z-index: 10;
+}

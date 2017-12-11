@@ -1,0 +1,1170 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Template where all IAM objects are defined",
+    "Parameters": {
+        "RegionalLambdaBucketARN": {
+            "Description": "RegionalLambdaBucket bucket ARN",
+            "Type": "String"
+        },
+        "CuratedDatasetsBucketName": {
+            "Type": "String"
+        },
+        "QSS3BucketName": {
+            "Description": "S3 bucket name for the repository. Repository bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
+            "Type": "String"
+        },
+        "ElasticsearchStreamDataBucketARN": {
+            "Type": "String"
+        },
+        "PiPointsTableARN": {
+            "Type": "String"
+        },
+        "EventsStatusTableARN": {
+            "Type": "String"
+        },
+        "ConnectorLogGroupName": {
+            "Type": "String"
+        },
+        "QSS3ConnectorBucketName": {
+            "Type": "String"
+        },
+        "QSS3ConnectorKeyPrefix": {
+            "Type": "String"
+        }
+    },
+    "Resources": {
+        "CloudWatchLoggingPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": "CloudWatchLoggingPolicy",
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "logs:CreateLogGroup",
+                                "logs:CreateLogStream",
+                                "logs:DescribeLogStreams",
+                                "logs:PutLogEvents"
+                            ],
+                            "Resource": [
+                                {
+                                    "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*"
+                                },
+                                {
+                                    "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*"
+                                }
+                            ]
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Roles": [
+                    {
+                        "Ref": "AthenaTableLambdaRole"
+                    },
+                    {
+                        "Ref": "AthenaTablePartitionLambdaRole"
+                    },
+                    {
+                        "Ref": "CopyLambdaDeploymentRole"
+                    },
+                    {
+                        "Ref": "ElasticsearchIndexCleanLambdaRole"
+                    },
+                    {
+                        "Ref": "KinesisAnalyticsLambdaRole"
+                    },
+                    {
+                        "Ref": "LogsToElasticsearchRole"
+                    },
+                    {
+                        "Ref": "ConnectorInstanceRole"
+                    },
+                    {
+                        "Ref": "RegisterKibanaDashboardRole"
+                    }
+                ]
+            }
+        },
+        "SQSSendMessagesPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": "SQSSendMessagesPolicy",
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "sqs:GetQueueUrl",
+                                "sqs:SendMessage"
+                            ],
+                            "Resource": {
+                                "Fn::Sub": "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:*"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Roles": [
+                    {
+                        "Ref": "ConnectorInstanceRole"
+                    },
+                    {
+                        "Ref": "ManagementConsoleInstanceRole"
+                    }
+                ]
+            }
+        },
+        "SQSReceiveMessagesPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": "SQSReceiveMessagesPolicy",
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "sqs:GetQueueUrl",
+                                "sqs:DeleteMessage",
+                                "sqs:ReceiveMessage"
+                            ],
+                            "Resource": {
+                                "Fn::Sub": "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:*"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Roles": [
+                    {
+                        "Ref": "CommunicationWorkerServerInstanceRole"
+                    },
+                    {
+                        "Ref": "ConnectorInstanceRole"
+                    },
+                    {
+                        "Ref": "ManagementConsoleInstanceRole"
+                    }
+                ]
+            }
+        },
+        "S3CuratedBucketReadAccessPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": "S3CuratedBucketReadAccessPolicy",
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "s3:GetObject",
+                                "s3:HeadObject",
+                                "s3:ListBucket",
+                                "s3:ListObjects",
+                                "s3:GetBucketLocation"
+                            ],
+                            "Resource": [
+                                {
+                                    "Fn::Sub": "arn:aws:s3:::${CuratedDatasetsBucketName}"
+                                },
+                                {
+                                    "Fn::Sub": "arn:aws:s3:::${CuratedDatasetsBucketName}/*"
+                                }
+                            ]
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Roles": [
+                    {
+                        "Ref": "AthenaTablePartitionLambdaRole"
+                    },
+                    {
+                        "Ref": "CommunicationWorkerServerInstanceRole"
+                    },
+                    {
+                        "Ref": "ConnectorInstanceRole"
+                    },
+                    {
+                        "Ref": "ManagementConsoleInstanceRole"
+                    },
+                    {
+                        "Ref": "StreamsAccessRole"
+                    }
+                ]
+            }
+        },
+        "S3CuratedBucketWriteAccessPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": "S3CuratedBucketWriteAccessPolicy",
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "s3:PutObject",
+                                "s3:DeleteObject"
+                            ],
+                            "Resource": [
+                                {
+                                    "Fn::Sub": "arn:aws:s3:::${CuratedDatasetsBucketName}"
+                                },
+                                {
+                                    "Fn::Sub": "arn:aws:s3:::${CuratedDatasetsBucketName}/*"
+                                }
+                            ]
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Roles": [
+                    {
+                        "Ref": "AthenaTablePartitionLambdaRole"
+                    },
+                    {
+                        "Ref": "ConnectorInstanceRole"
+                    },
+                    {
+                        "Ref": "ManagementConsoleInstanceRole"
+                    },
+                    {
+                        "Ref": "StreamsAccessRole"
+                    },
+                    {
+                        "Ref": "ManagedFeedsBucketRole"
+                    }
+                ]
+            }
+        },
+        "S3GetAssetsPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": "S3GetAssetsPolicy",
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "s3:GetObject",
+                                "s3:HeadObject"
+                            ],
+                            "Resource": {
+                                "Fn::Sub": "arn:aws:s3:::${QSS3BucketName}/*"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Roles": [
+                    {
+                        "Ref": "CommunicationWorkerServerInstanceRole"
+                    },
+                    {
+                        "Ref": "ConnectorInstanceRole"
+                    },
+                    {
+                        "Ref": "ManagementConsoleInstanceRole"
+                    },
+                    {
+                        "Ref": "CopyLambdaDeploymentRole"
+                    },
+                    {
+                        "Ref": "RegisterKibanaDashboardRole"
+                    }
+                ]
+            }
+        },
+        "ElasticsearchStreamDataBucketAccessPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": "ElasticsearchStreamDataBucketAccessPolicy",
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "s3:GetObject",
+                                "s3:HeadObject",
+                                "s3:GetBucketLocation",
+                                "s3:ListBucket",
+                                "s3:ListObjects",
+                                "s3:ListBucketMultipartUploads",
+                                "s3:AbortMultipartUpload",
+                                "s3:PutObject"
+                            ],
+                            "Resource": [
+                                {
+                                    "Ref": "ElasticsearchStreamDataBucketARN"
+                                },
+                                {
+                                    "Fn::Sub": "${ElasticsearchStreamDataBucketARN}/*"
+                                }
+                            ]
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Roles": [
+                    {
+                        "Ref": "AthenaTablePartitionLambdaRole"
+                    },
+                    {
+                        "Ref": "CommunicationWorkerServerInstanceRole"
+                    },
+                    {
+                        "Ref": "ElasticsearchBucketRole"
+                    },
+                    {
+                        "Ref": "ManagedFeedsBucketRole"
+                    }
+                ]
+            }
+        },
+        "ElasticsearchAccessPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": "ElasticsearchAccessPolicy",
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "es:DescribeElasticsearchDomain",
+                                "es:DescribeElasticsearchDomains",
+                                "es:DescribeElasticsearchDomainConfig",
+                                "es:ESHttpPost",
+                                "es:ESHttpPut",
+                                "es:ESHttpGet",
+                                "es:ESHttpDelete"
+                            ],
+                            "Resource": {
+                                "Fn::Sub": "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Roles": [
+                    {
+                        "Ref": "ElasticsearchAccessRole"
+                    },
+                    {
+                        "Ref": "ElasticsearchIndexCleanLambdaRole"
+                    },
+                    {
+                        "Ref": "LogsToElasticsearchRole"
+                    },
+                    {
+                        "Ref": "RegisterKibanaDashboardRole"
+                    }
+                ]
+            }
+        },
+        "KinesisStreamAccessPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": "KinesisStreamAccessPolicy",
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "kinesis:CreateStream",
+                                "kinesis:DeleteStream",
+                                "kinesis:DescribeStream",
+                                "kinesis:ListStreams",
+                                "kinesis:PutRecord",
+                                "kinesis:PutRecords",
+                                "kinesis:GetRecords",
+                                "kinesis:GetShardIterator"
+                            ],
+                            "Resource": {
+                                "Fn::Sub": "arn:aws:kinesis:${AWS::Region}:${AWS::AccountId}:stream/*"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Roles": [
+                    {
+                        "Ref": "StreamsAccessRole"
+                    }
+                ]
+            }
+        },
+        "AthenaTableLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Policies": [
+                    {
+                        "PolicyName": "AthenaAccess",
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "athena:StartQueryExecution",
+                                        "athena:GetQueryExecution",
+                                        "glue:CreateDatabase",
+                                        "glue:DeleteDatabase",
+                                        "glue:GetDatabase",
+                                        "glue:GetDatabases",
+                                        "glue:UpdateDatabase",
+                                        "glue:CreateTable",
+                                        "glue:DeleteTable",
+                                        "glue:BatchDeleteTable",
+                                        "glue:UpdateTable",
+                                        "glue:GetTable",
+                                        "glue:GetTables",
+                                        "glue:BatchCreatePartition",
+                                        "glue:CreatePartition",
+                                        "glue:DeletePartition",
+                                        "glue:BatchDeletePartition",
+                                        "glue:UpdatePartition",
+                                        "glue:GetPartition",
+                                        "glue:GetPartitions",
+                                        "glue:BatchGetPartition"
+                                    ],
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "s3:PutObject",
+                                        "s3:GetObject",
+                                        "s3:CreateBucket",
+                                        "s3:ListObjects",
+                                        "s3:DeleteObject",
+                                        "s3:DeleteBucket",
+                                        "s3:GetBucketLocation",
+                                        "s3:ListBucket",
+                                        "s3:ListBucketMultipartUploads",
+                                        "s3:ListMultipartUploadParts",
+                                        "s3:AbortMultipartUpload"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Sub": "arn:aws:s3:::${CuratedDatasetsBucketName}"
+                                        },
+                                        {
+                                            "Fn::Sub": "arn:aws:s3:::${CuratedDatasetsBucketName}/*"
+                                        }
+                                    ]
+                                }
+                            ],
+                            "Version": "2012-10-17"
+                        }
+                    }
+                ]
+            }
+        },
+        "AthenaTablePartitionLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Policies": [
+                    {
+                        "PolicyName": "AthenaPartitionAccess",
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "athena:StartQueryExecution",
+                                        "athena:GetQueryExecution",
+                                        "athena:ListQueryExecutions",
+                                        "glue:GetDatabase",
+                                        "glue:GetPartition",
+                                        "glue:CreateTable",
+                                        "glue:CreateDatabase",
+                                        "glue:CreatePartition",
+                                        "glue:GetTable",
+                                        "glue:BatchCreatePartition"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ],
+                            "Version": "2012-10-17"
+                        }
+                    }
+                ]
+            }
+        },
+        "CommunicationWorkerServerInstanceRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "ec2.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Policies": [
+                    {
+                        "PolicyName": "DynamoDBPolicy",
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "dynamodb:PutItem",
+                                        "dynamodb:DeleteItem",
+                                        "dynamodb:GetItem",
+                                        "dynamodb:Scan",
+                                        "dynamodb:Query",
+                                        "dynamodb:UpdateItem"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Ref": "PiPointsTableARN"
+                                        },
+                                        {
+                                            "Ref": "EventsStatusTableARN"
+                                        },
+                                        {
+                                            "Fn::Sub": "${EventsStatusTableARN}/index/*"
+                                        }
+                                    ]
+                                }
+                            ],
+                            "Version": "2012-10-17"
+                        }
+                    }
+                ]
+            }
+        },
+        "ConnectorInstanceRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "ec2.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Policies": [
+                    {
+                        "PolicyName": "EC2Policy",
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "ec2:AssociateAddress",
+                                        "ec2:DescribeAddresses"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ],
+                            "Version": "2012-10-17"
+                        }
+                    },
+                    {
+                        "PolicyName": "SSMPolicy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "ssm:DescribeAssociation",
+                                        "ssm:GetDeployablePatchSnapshotForInstance",
+                                        "ssm:GetDocument",
+                                        "ssm:GetManifest",
+                                        "ssm:GetParameters",
+                                        "ssm:ListAssociations",
+                                        "ssm:ListInstanceAssociations",
+                                        "ssm:PutInventory",
+                                        "ssm:PutComplianceItems",
+                                        "ssm:PutConfigurePackageResult",
+                                        "ssm:UpdateAssociationStatus",
+                                        "ssm:UpdateInstanceAssociationStatus",
+                                        "ssm:UpdateInstanceInformation"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:document/*"
+                                        },
+                                        {
+                                            "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "ec2messages:AcknowledgeMessage",
+                                        "ec2messages:DeleteMessage",
+                                        "ec2messages:FailMessage",
+                                        "ec2messages:GetEndpoint",
+                                        "ec2messages:GetMessages",
+                                        "ec2messages:SendReply"
+                                    ],
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": "cloudwatch:PutMetricData",
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": "ec2:DescribeInstanceStatus",
+                                    "Resource": "*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "ds:CreateComputer",
+                                        "ds:DescribeDirectories"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "PolicyName": "S3ConnectorBucketAccess",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "s3:ListObjects",
+                                        "s3:ListBucket"
+                                    ],
+                                    "Resource": {
+                                        "Fn::Sub": "arn:aws:s3:::${QSS3ConnectorBucketName}"
+                                    }
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "s3:PutObject",
+                                        "s3:GetObject"
+                                    ],
+                                    "Resource": {
+                                        "Fn::Sub": "arn:aws:s3:::${QSS3ConnectorBucketName}/${QSS3ConnectorKeyPrefix}*"
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "PolicyName": "KinesisAccess",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": "kinesis:PutRecord",
+                                    "Resource": {
+                                        "Fn::Sub": "arn:aws:kinesis:${AWS::Region}:${AWS::AccountId}:stream/*"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "CopyLambdaDeploymentRole": {
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Policies": [
+                    {
+                        "PolicyName": "RegionalLambdaBucketWritePolicy",
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "s3:PutObject",
+                                        "s3:DeleteObject"
+                                    ],
+                                    "Resource": {
+                                        "Fn::Sub": "${RegionalLambdaBucketARN}/*"
+                                    }
+                                }
+                            ],
+                            "Version": "2012-10-17"
+                        }
+                    }
+                ]
+            },
+            "Type": "AWS::IAM::Role"
+        },
+        "ElasticsearchAccessRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "firehose.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }
+            }
+        },
+        "ElasticsearchBucketRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "firehose.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }
+            }
+        },
+        "ElasticsearchIndexCleanLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }
+            }
+        },
+        "KinesisAnalyticsLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Policies": [
+                    {
+                        "PolicyName": "KinesisAnalyticsAccess",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "kinesisanalytics:CreateApplication",
+                                        "kinesisanalytics:DeleteApplication",
+                                        "kinesisanalytics:DescribeApplication",
+                                        "kinesisanalytics:StartApplication"
+                                    ],
+                                    "Resource": {
+                                        "Fn::Sub": "arn:aws:kinesisanalytics:${AWS::Region}:${AWS::AccountId}:application/managed-feeds*"
+                                    }
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "iam:GetRole",
+                                        "iam:PassRole"
+                                    ],
+                                    "Resource": {
+                                        "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/*"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "LogsToElasticsearchRole": {
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }
+            },
+            "Type": "AWS::IAM::Role"
+        },
+        "ManagedFeedsBucketRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "firehose.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }
+            }
+        },
+        "ManagementConsoleInstanceRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "ec2.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Policies": [
+                    {
+                        "PolicyName": "DynamoPutEventAccess",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "dynamodb:PutItem",
+                                        "dynamodb:GetItem",
+                                        "dynamodb:Scan",
+                                        "dynamodb:Query",
+                                        "dynamodb:UpdateItem"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Ref": "EventsStatusTableARN"
+                                        },
+                                        {
+                                            "Fn::Sub": "${EventsStatusTableARN}/index/*"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "dynamodb:PutItem",
+                                        "dynamodb:DeleteItem",
+                                        "dynamodb:Scan",
+                                        "dynamodb:UpdateItem"
+                                    ],
+                                    "Resource": {
+                                        "Ref": "PiPointsTableARN"
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "PolicyName": "CloudWatchEventsAccess",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "events:PutTargets",
+                                        "events:DeleteRule",
+                                        "events:DescribeRule",
+                                        "events:ListRuleNamesByTarget",
+                                        "events:EnableRule",
+                                        "events:PutRule",
+                                        "events:ListRules",
+                                        "events:RemoveTargets",
+                                        "events:ListTargetsByRule",
+                                        "events:DisableRule"
+                                    ],
+                                    "Resource": {
+                                        "Fn::Sub": "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/*"
+                                    }
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": "iam:PassRole",
+                                    "Resource": {
+                                        "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/AWS_Events_Invoke_Targets"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "RegisterKibanaDashboardRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }
+            }
+        },
+        "StreamsAccessRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "kinesisanalytics.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Policies": [
+                    {
+                        "PolicyName": "FirehoseAccess",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Sid": "FirehoseAccess",
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "firehose:DescribeDeliveryStream",
+                                        "firehose:PutRecord",
+                                        "firehose:PutRecordBatch",
+                                        "firehose:ListDeliveryStreams"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "ConnectorInstanceProfile": {
+            "Type": "AWS::IAM::InstanceProfile",
+            "Properties": {
+                "Roles": [
+                    {
+                        "Ref": "ConnectorInstanceRole"
+                    }
+                ]
+            }
+        },
+        "CommunicationWorkerServerInstanceProfile": {
+            "Type": "AWS::IAM::InstanceProfile",
+            "Properties": {
+                "Roles": [
+                    {
+                        "Ref": "CommunicationWorkerServerInstanceRole"
+                    }
+                ]
+            }
+        },
+        "ManagementConsoleInstanceProfile": {
+            "Type": "AWS::IAM::InstanceProfile",
+            "Properties": {
+                "Roles": [
+                    {
+                        "Ref": "ManagementConsoleInstanceRole"
+                    }
+                ]
+            }
+        }
+    },
+    "Outputs": {
+        "AthenaTablePartitionLambdaRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "AthenaTablePartitionLambdaRole",
+                    "Arn"
+                ]
+            }
+        },
+        "CommunicationWorkerServerInstanceProfileARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "CommunicationWorkerServerInstanceProfile",
+                    "Arn"
+                ]
+            }
+        },
+        "ConnectorInstanceProfileARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "ConnectorInstanceProfile",
+                    "Arn"
+                ]
+            }
+        },
+        "LogsToElasticsearchRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "LogsToElasticsearchRole",
+                    "Arn"
+                ]
+            }
+        },
+        "CopyLambdaDeploymentRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "CopyLambdaDeploymentRole",
+                    "Arn"
+                ]
+            }
+        },
+        "ManagementConsoleInstanceProfileARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "ManagementConsoleInstanceProfile",
+                    "Arn"
+                ]
+            }
+        },
+        "ElasticsearchAccessRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "ElasticsearchAccessRole",
+                    "Arn"
+                ]
+            }
+        },
+        "ElasticsearchIndexCleanLambdaRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "ElasticsearchIndexCleanLambdaRole",
+                    "Arn"
+                ]
+            }
+        },
+        "RegisterKibanaDashboardRoleARN": {
+             "Value": {
+                "Fn::GetAtt": [
+                    "RegisterKibanaDashboardRole",
+                    "Arn"
+                ]
+            }
+        },
+        "StreamsAccessRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "StreamsAccessRole",
+                    "Arn"
+                ]
+            }
+        },
+        "KinesisAnalyticsLambdaRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "KinesisAnalyticsLambdaRole",
+                    "Arn"
+                ]
+            }
+        },
+        "AthenaTableLambdaRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "AthenaTableLambdaRole",
+                    "Arn"
+                ]
+            }
+        },
+        "ElasticsearchBucketRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "ElasticsearchBucketRole",
+                    "Arn"
+                ]
+            }
+        },
+        "ManagedFeedsBucketRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "ManagedFeedsBucketRole",
+                    "Arn"
+                ]
+            }
+        }
+    }
+}

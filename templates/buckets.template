@@ -1,0 +1,146 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "AWS CloudFormation templates to create S3 buckets. **WARNING** You will be billed for data stored in AWS S3 buckets if you create a stack from this template.",
+    "Parameters": {
+        "QSDeploymentSuffix": {
+            "Type": "String",
+            "Description": "Deployment suffix for making resouce names unique"
+        }
+    },
+    "Resources": {
+        "RegionalLambdaBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "BucketName": {
+                    "Fn::Join": [
+                        "-",
+                        [
+                            "regional",
+                            "lambda",
+                            "bucket",
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            {
+                                "Ref": "QSDeploymentSuffix"
+                            }
+                        ]
+                    ]
+                }
+            }
+        },
+        "ElasticsearchStreamDataBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "BucketName": {
+                    "Fn::Join": [
+                        "-",
+                        [
+                            "elasticsearch",
+                            "managed",
+                            "feeds",
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            {
+                                "Ref": "QSDeploymentSuffix"
+                            }
+                        ]
+                    ]
+                }
+            }
+        },
+        "SubmissionsBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "BucketName": {
+                    "Fn::Join": [
+                        "-",
+                        [
+                            "datalake-submissions-pi2aws",
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            {
+                                "Ref": "QSDeploymentSuffix"
+                            }
+                        ]
+                    ]
+                }
+            }
+        },
+        "PublishedDataBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "BucketName": {
+                    "Fn::Join": [
+                        "-",
+                        [
+                            "datalake-published-data-pi2aws",
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            {
+                                "Ref": "QSDeploymentSuffix"
+                            }
+                        ]
+                    ]
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "RegionalLambdaBucketARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "RegionalLambdaBucket",
+                    "Arn"
+                ]
+            },
+            "Description": "RegionalLambdaBucket bucket ARN"
+        },
+        "RegionalLambdaBucketName": {
+            "Value": {
+                "Ref": "RegionalLambdaBucket"
+            },
+            "Description": "RegionalLambdaBucket bucket name"
+        },
+        "ElasticsearchStreamDataBucketARN":{
+            "Value": {
+                "Fn::GetAtt": [
+                    "ElasticsearchStreamDataBucket",
+                    "Arn"
+                ]
+            }
+        },
+        "ElasticsearchStreamDataBucketName":{
+            "Value": {
+                "Ref": "ElasticsearchStreamDataBucket"
+            }
+        },
+        "SubmissionsBucketName": {
+            "Value": {
+                "Ref": "SubmissionsBucket"
+            },
+            "Description": "Submissions bucket name"
+        },
+        "PublishedDataBucketName": {
+            "Value": {
+                "Ref": "PublishedDataBucket"
+            },
+            "Description": "Published data bucket name"
+        }
+    }
+}

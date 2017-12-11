@@ -1,0 +1,165 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "**WARNING** This template creates an Amazon DynamoDb tables. You will be billed for the AWS resources used if you create a stack from this template.",
+    "Parameters": {
+        "ReadCapacity": {
+            "Description": "Read capacity of the tables",
+            "Type": "Number",
+            "Default": 1,
+            "MinValue": 1,
+            "MaxValue": 10000,
+            "ConstraintDescription": "Must be between 1 and 10000"
+        },
+        "WriteCapacity": {
+            "Description": "Write capacity of the tables",
+            "Type": "Number",
+            "Default": 1,
+            "MinValue": 1,
+            "MaxValue": 10000,
+            "ConstraintDescription": "Must be between 1 and 10000"
+        },
+        "PiPointsTableName": {
+            "Description": "Table name for dynamodb database which holds subscriptions of managed feeds",
+            "Type": "String"
+        },
+        "EventsStatusTableName": {
+            "Description": "Table name for dynamodb database which holds state of point updates",
+            "Type": "String"
+        }
+    },
+    "Resources": {
+        "PiPointsTable": {
+            "Type": "AWS::DynamoDB::Table",
+            "Properties": {
+                "AttributeDefinitions": [
+                    {
+                        "AttributeName": "pi_point",
+                        "AttributeType": "S"
+                    }
+                ],
+                "KeySchema": [
+                    {
+                        "AttributeName": "pi_point",
+                        "KeyType": "HASH"
+                    }
+                ],
+                "ProvisionedThroughput": {
+                    "ReadCapacityUnits": {
+                        "Ref": "ReadCapacity"
+                    },
+                    "WriteCapacityUnits": {
+                        "Ref": "WriteCapacity"
+                    }
+                },
+                "TableName": {
+                    "Ref": "PiPointsTableName"
+                }
+            }
+        },
+        "EventsStatusTable": {
+            "Type": "AWS::DynamoDB::Table",
+            "Properties": {
+                "AttributeDefinitions": [
+                    {
+                        "AttributeName": "event_type",
+                        "AttributeType": "S"
+                    },
+                    {
+                        "AttributeName": "id",
+                        "AttributeType": "S"
+                    },
+                    {
+                        "AttributeName": "update_timestamp",
+                        "AttributeType": "S"
+                    },
+                    {
+                        "AttributeName": "create_date",
+                        "AttributeType": "S"
+                    }
+                ],
+                "KeySchema": [
+                    {
+                        "AttributeName": "id",
+                        "KeyType": "HASH"
+                    }
+                ],
+                "GlobalSecondaryIndexes": [
+                    {
+                        "IndexName": "EventTimestampIndex",
+                        "KeySchema": [
+                            {
+                                "AttributeName": "event_type",
+                                "KeyType": "HASH"
+                            },
+                            {
+                                "AttributeName": "update_timestamp",
+                                "KeyType": "RANGE"
+                            }
+                        ],
+                        "Projection": {
+                            "ProjectionType": "ALL"
+                        },
+                        "ProvisionedThroughput": {
+                            "ReadCapacityUnits": 10,
+                            "WriteCapacityUnits": 10
+                        }
+                    },
+                    {
+                        "IndexName": "EventDateIndex",
+                        "KeySchema": [
+                            {
+                                "AttributeName": "create_date",
+                                "KeyType": "HASH"
+                            },
+                            {
+                                "AttributeName": "update_timestamp",
+                                "KeyType": "RANGE"
+                            }
+                        ],
+                        "Projection": {
+                            "ProjectionType": "ALL"
+                        },
+                        "ProvisionedThroughput": {
+                            "ReadCapacityUnits": 10,
+                            "WriteCapacityUnits": 10
+                        }
+                    }
+                ],
+                "ProvisionedThroughput": {
+                    "ReadCapacityUnits": {
+                        "Ref": "ReadCapacity"
+                    },
+                    "WriteCapacityUnits": {
+                        "Ref": "WriteCapacity"
+                    }
+                },
+                "TableName": {
+                    "Ref": "EventsStatusTableName"
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "EventsStatusTable": {
+            "Value": {
+                "Ref": "EventsStatusTable"
+            }
+        },
+        "PiPointsTableARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "PiPointsTable",
+                    "Arn"
+                ]
+            }
+        },
+        "EventsStatusTableARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "EventsStatusTable",
+                    "Arn"
+                ]
+            }
+        }
+    }
+}

@@ -1,0 +1,804 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "This template creates a single 47lining PI2AWS Connector installation. **WARNING** This template creates Amazon EC2 Windows instance and related resources. You will be billed for the AWS resources used if you create a stack from this template. Also, you are solely responsible for complying with the license terms for the software downloaded and installed by this template. By creating a stack from this template, you are agreeing to such terms.",
+    "Parameters": {
+        "KeyName": {
+            "Description": "Name of an existing EC2 KeyPair",
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "ConstraintDescription": "must be the name of an existing EC2 KeyPair."
+        },
+        "InstanceType": {
+            "Description": "Amazon EC2 instance type",
+            "Type": "String",
+            "Default": "m4.large",
+            "AllowedValues": [
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m1.small",
+                "m1.medium",
+                "m1.large",
+                "m1.xlarge",
+                "m2.xlarge",
+                "m2.2xlarge",
+                "m2.4xlarge",
+                "m3.medium",
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m4.4xlarge",
+                "m4.10xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },
+        "VpcId": {
+            "Description": "VPC id",
+            "Type": "AWS::EC2::VPC::Id"
+        },
+        "PublicSubnet1ID": {
+            "Description": "Connector subnet 1",
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "PublicSubnet2ID": {
+            "Description": "Connector subnet 2",
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "QSS3ConnectorKeyPrefix": {
+            "Description": "Key prefix where af install kit resides",
+            "Type": "String"
+        },
+        "PIServerIP": {
+            "Type": "String"
+        },
+        "AFUser": {
+            "Type": "String"
+        },
+        "AFPassword": {
+            "NoEcho": "true",
+            "Type": "String"
+        },
+        "AFDomainName": {
+            "Type": "String"
+        },
+        "PIUser": {
+            "Type": "String"
+        },
+        "PIPassword": {
+            "Type": "String",
+            "NoEcho": "true"
+        },
+        "PIPort": {
+            "Type": "Number"
+        },
+        "AFServerIP": {
+            "Type": "String"
+        },
+        "AFPort": {
+            "Type": "Number"
+        },
+        "LogGroupName": {
+            "Type": "String"
+        },
+        "QSS3ConnectorBucketName": {
+            "Type": "String"
+        },
+        "OutgoingQueueUrl": {
+            "Type": "String"
+        },
+        "KinesisStreamName": {
+            "Type": "String"
+        },
+        "IncomingQueueUrl": {
+            "Type": "String"
+        },
+        "RemoteAccessCIDR": {
+            "Type": "String"
+        },
+        "PiPointsTableName": {
+            "Type": "String"
+        },
+        "ConnectorInstanceProfileARN": {
+            "Type": "String"
+        },
+        "QSDeploymentSuffix": {
+            "Type": "String",
+            "Description": "Deployment suffix for making resouce names unique"
+        },
+        "MetricNamespaceName": {
+            "Type": "String"
+        },
+        "ElasticsearchDomainEndpoint": {
+            "Type": "String"
+        },
+        "RegionalLambdaBucketName": {
+            "Description": "Regional S3 bucket where tha lambda code will be stored",
+            "Type": "String"
+        },
+        "RegionalLambdaBucketARN": {
+            "Description": "RegionalLambdaBucket bucket ARN",
+            "Type": "String"
+        },
+        "LogsToElasticsearchRoleARN": {
+            "Type": "String"
+        },
+        "StateS3Bucket": {
+            "Type": "String"
+        },
+        "AuthType": {
+            "Type": "String",
+            "AllowedValues": ["WIS", "Explicit user and password"],
+            "Default": "Explicit user and password"
+        },
+        "WISUser": {
+            "Type": "String"
+        },
+        "WISPassword": {
+            "Type": "String",
+            "NoEcho": "true"
+        },
+        "VPNAddress": {
+            "Type": "String",
+            "Default": ""
+        },
+        "VPNUser": {
+            "Type": "String",
+            "Default": ""
+        },
+        "VPNPassword": {
+            "Type": "String",
+            "Default": "",
+            "NoEcho": "true"
+        },
+        "VPNFQDN": {
+            "Type": "String",
+            "Default": ""
+        }
+    },
+    "Mappings": {
+        "AWSRegion2AMI": {
+            "us-east-1": {
+                "Windows2016": "ami-5648ad2c"
+            },
+            "us-west-2": {
+                "Windows2016": "ami-47897a3f"
+            },
+            "eu-west-1": {
+                "Windows2016": "ami-e92fec90"
+            }
+        }
+    },
+    "Conditions": {
+        "UseWIS": {
+            "Fn::Equals": [
+                {
+                    "Ref": "AuthType"
+                },
+                "WIS"
+            ]
+        }
+    },
+    "Resources": {
+        "PI2AWSSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VpcId"
+                },
+                "GroupDescription": "Enable HTTP and RDP",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "3389",
+                        "ToPort": "3389",
+                        "CidrIp": { "Ref": "RemoteAccessCIDR" }
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": { "Ref": "AFPort" },
+                        "ToPort": { "Ref": "AFPort" },
+                        "CidrIp": { "Fn::Sub": "${PIServerIP}/32" }
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": { "Ref": "PIPort" },
+                        "ToPort": { "Ref": "PIPort" },
+                        "CidrIp": { "Fn::Sub": "${PIServerIP}/32" }
+                    }
+                ]
+            }
+        },
+        "PI2AWSConnectorLaunchConfiguration": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Metadata": {
+                "AWS::CloudFormation::Init": {
+                    "config": {
+                        "files": {
+                            "c:\\wis.ps1": {
+                                "content": {
+                                    "Fn::Join": [
+                                        "\r\n",
+                                        [
+                                            "$name = \"VPNConn\"",
+                                            { "Fn::Sub": "$address = \"${VPNAddress}\""},
+                                            { "Fn::Sub": "$username = \"${VPNUser}\""} ,
+                                            { "Fn::Sub": "$password = \"${VPNPassword}\""},
+                                            { "Fn::Sub": "$fqdn = \"${VPNFQDN}\""},
+                                            { "Fn::Sub": "$wisuser = \"${WISUser}\""},
+                                            { "Fn::Sub": "$wispassword = \"${WISPassword}\""},
+                                            "",
+                                            "Function Join-Domain([string]$strDomain, [string]$strUser, [string]$strPassword) {",
+                                            "  Try {",
+                                            "      $pass = $strPassword | ConvertTo-SecureString -asPlainText -Force",
+                                            "      $username = \"$strDomain\\$strUser\"",
+                                            "      $credential = New-Object System.Management.Automation.PSCredential($username,$pass)",
+                                            "      Add-Computer -DomainName $strDomain -Credential $credential",
+                                            "  }",
+                                            "  Catch {}",
+                                            "}",
+                                            "",
+                                            "Function Set-ServiceAcctCreds([string]$strServiceName,[string]$newAcct,[string]$newPass) {",
+                                            "  $filter = 'Name=' + \"'\" + $strServiceName + \"'\" + ''",
+                                            "  $service = Get-WMIObject -class Win32_Service -Filter $filter",
+                                            "  $service.StopService()",
+                                            "  while ($service.Started){",
+                                            "    sleep 2",
+                                            "    $service = Get-WMIObject -class Win32_Service -Filter $filter",
+                                            "  }",
+                                            "  $service | Invoke-WmiMethod -Name Change -ArgumentList @($null,$null,$null,$null,$null,$null,$null,$null,$null,$newAcct,$newPass)",
+                                            "  $service.StartService()",
+                                            "}",
+                                            "",
+                                            "$vpn = Get-VpnConnection | where {$_.Name -eq $name}",
+                                            "",
+                                            "if($vpn.Name -ne $name)",
+                                            "{",
+                                            "    Add-VpnConnection -Name $name -ServerAddress $address -TunnelType PPTP -Force:$true -RememberCredential:$true -SplitTunneling:$true",
+                                            "}",
+                                            "",
+                                            "while($true)",
+                                            "{",
+                                            "    $vpn = Get-VpnConnection | where {$_.Name -eq $name}",
+                                            "    if ($vpn.ConnectionStatus -eq \"Disconnected\")",
+                                            "    {",
+                                            "        $cmd = $env:WINDIR + \"\\System32\\rasdial.exe\"",
+                                            "        $expression = \"$cmd $name $username $password /domain:$fqdn\"",
+                                            "        Invoke-Expression -Command $expression",
+                                            "        & Join-Domain $fqdn $username $password",
+                                            "        start-sleep -seconds 20",
+                                            "        $fulluser = \"$fqdn\\$wisuser\"",
+                                            "        Invoke-Expression -Command \"C:\\connector\\grantRights.ps1 $fulluser\"",
+                                            "        & Set-ServiceAcctCreds 'pi2aws-connector' $fulluser $wispassword.TrimEnd(\"`r?`n\")",
+                                            "    }",
+                                            "    start-sleep -seconds 10",
+                                            "}"
+                                        ]
+                                    ]
+                                }
+                            },
+                            "c:\\AWSCLI64.msi": {
+                                "source": "https://s3.amazonaws.com/aws-cli/AWSCLI64.msi"
+                            },
+                            "c:\\AF-Install-Kit\\silent.ini": {
+                                "content": {
+                                    "Fn::Join": [
+                                        "\n",
+                                        [
+                                            "[SETUPKIT]",
+                                            "NAME = SetupAFClient2_x",
+                                            "DISPLAYNAME = PI AF Client ",
+                                            "SHOWSKIPPEDMODULES = FALSE",
+                                            "FEATUREUPGRADE = FALSE",
+                                            "SUPPRESSCOMPLETIONMESSAGE = TRUE",
+                                            "SUPPRESSPROGRESSMESSAGE = TRUE",
+                                            "SUPPRESSHEADERMESSAGE = TRUE",
+                                            "SUPPRESSDIALOGS = TRUE",
+                                            "[NUMSETUPMODULES]",
+                                            "NUM = 12",
+                                            "[SETUPMODULES]",
+                                            "1 = dotnet460Setup",
+                                            "2 = PreInstallTasks",
+                                            "3 = MSVC9SP1x86Redistrib",
+                                            "4 = MSVC9SP1x64Redistrib",
+                                            "5 = MSRuntimesVS2015u2_x86",
+                                            "6 = MSRuntimesVS2015u2_x64",
+                                            "7 = PINS ",
+                                            "8 = PIBufss.msi",
+                                            "9 = PIBufss_x64.msi",
+                                            "10 = AFClient_x86.msi",
+                                            "11 = AFClient_x64.msi",
+                                            "12 = VSTOWrapper",
+                                            "[COMMANDLINE]",
+                                            "1 = /q",
+                                            "2 = ",
+                                            "3 = /q /norestart",
+                                            "4 = /q /norestart",
+                                            "5 = /q /norestart",
+                                            "6 = /q /norestart",
+                                            "7 = ALLUSERS=1 REBOOT=Suppress /qn",
+                                            "8 = ALLUSERS=1 REBOOT=Suppress /qn",
+                                            "9 = ALLUSERS=1 REBOOT=Suppress /qn",
+                                            {
+                                                "Fn::Sub": "10 = /qn REBOOT=Suppress ALLUSERS=1 ADDLOCAL=FD_AFSDK,FD_AFExplorer AF_SERVER=AFHostName PI_SERVER=PIHostName PI_USER=${AFUser} PI_PORT=${PIPort}"
+                                            },
+                                            {
+                                                "Fn::Sub": "11 = /qn REBOOT=Suppress ALLUSERS=1 ADDLOCAL=FD_AFSDK,FD_AFExplorer AF_SERVER=AFHostName PI_SERVER=PIHostName PI_USER=${AFUser} PI_PORT=${PIPort}"
+                                            },
+                                            "[UPGRADECOMMANDLINE]",
+                                            "[DISPLAYNAME]",
+                                            "3 = Microsoft Visual C++ 2008 Redistributable x86",
+                                            "4 = Microsoft Visual C++ 2008 Redistributable x64",
+                                            "[VERSION]",
+                                            "[CHECKFORINSTALLEDONLY]",
+                                            "[UNSUPPORTED_OPERATING_SYSTEMS]",
+                                            "0 = Win95, Win98, WinME, WinNT, Win2K,  WinXP, WinNET, VistaNoSp, VistaSp1, Win2008NoSp, Win2008Sp1, Win2008SP2_X64_CORE, Win7NoSp, Win2008R2NoSp, Win2008R2SP1_X64_CORE ",
+                                            "3 = X64",
+                                            "4 = X86",
+                                            "6 = X86",
+                                            "8 = X64",
+                                            "9 = X86",
+                                            "10 = X64",
+                                            "11 = X86",
+                                            "[RUNTIME_PARAMETERS]",
+                                            "[PIBUFSS]"
+                                        ]
+                                    ]
+                                }
+                            },
+                            "c:\\connector\\PI2AWSConnector.exe.config": {
+                                "content": {
+                                    "Fn::Join": [
+                                        "\r\n",
+                                        [
+                                            "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+                                            "<configuration>",
+                                              "<configSections>",
+                                                "<section name=\"log4net\" type=\"log4net.Config.Log4NetConfigurationSectionHandler, log4net\" />",
+                                              "</configSections>",
+                                            "    <startup>",
+                                            "        <supportedRuntime version=\"v4.0\" sku=\".NETFramework,Version=v4.6\"/>",
+                                            "    </startup>",
+                                            "  <runtime>",
+                                            "    <assemblyBinding xmlns=\"urn:schemas-microsoft-com:asm.v1\">",
+                                            "      <probing privatePath=\"bin\"/>",
+                                            "    </assemblyBinding>",
+                                            "  </runtime>",
+                                            "  <appSettings>",
+                                            {
+                                                "Fn::Sub": "    <add key=\"PIServer\" value=\"PIHostName\"/>"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"AFServer\" value=\"AFHostName\"/>"
+                                            },
+                                            "    <add key=\"Interval\" value=\"1\"/>",
+                                            {
+                                                "Fn::Sub": "    <add key=\"StreamName\" value=\"${KinesisStreamName}\"/>"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"EventQueueUrl\" value=\"${IncomingQueueUrl}\"/>"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"ResponseQueueUrl\" value=\"${OutgoingQueueUrl}\"/>"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"PiPointsTableName\" value=\"${PiPointsTableName}\"/>"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"Region\" value=\"${AWS::Region}\"/>"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"LogGroup\" value=\"${LogGroupName}\"/>"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"LogStream\" value=\"${ConnectorStream}\"/>"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"StateBucket\" value=\"${StateS3Bucket}\" />"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"StateKey\" value=\"connector-state\"/>"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"AFUser\" value=\"${AFUser}\"/>"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"AFPassword\" value=\"${AFPassword}\"/>"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"AFDomain\" value=\"${AFDomainName}\"/>"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"PIUser\" value=\"${PIUser}\"/>"
+                                            },
+                                            {
+                                                "Fn::Sub": "    <add key=\"PIPassword\" value=\"${PIPassword}\"/>"
+                                            },
+                                            "  </appSettings>",
+                                            "  <log4net>",
+                                                "<appender name=\"RollingFile\" type=\"log4net.Appender.RollingFileAppender\">",
+                                                  "<encoding value=\"utf-8\" />",
+                                                  "<file value=\"Logs\\CommandLine.Log\" />",
+                                                  "<threshold value=\"ALL\" />",
+                                                  "<appendToFile value=\"true\" />",
+                                                  "<rollingStyle value=\"Composite\" />",
+                                                  "<maximumFileSize value=\"10MB\" />",
+                                                  "<maxSizeRollBackups value=\"10\" />",
+                                                  "<datePattern value=\"yyyyMMdd\" />",
+                                                  "<layout type=\"log4net.Layout.PatternLayout\">",
+                                                    "<conversionPattern value=\"%date{yyyy-MM-dd HH:mm:ss} [%thread] %level  %message %newline\" />",
+                                                  "</layout>",
+                                                "</appender>",
+
+                                                "<appender name=\"ColoredConsoleAppender\" type=\"log4net.Appender.ColoredConsoleAppender\">",
+                                                  "<encoding value=\"utf-8\" />",
+                                                  "<mapping>",
+                                                    "<level value=\"ERROR\" />",
+                                                    "<foreColor value=\"Red, highintensity\" />",
+                                                  "</mapping>",
+                                                  "<mapping>",
+                                                    "<level value=\"WARN\" />",
+                                                    "<foreColor value=\"Yellow, highintensity\" />",
+                                                  "</mapping>",
+                                                  "<mapping>",
+                                                    "<level value=\"ALL\" />",
+                                                    "<foreColor value=\"Green\" />",
+                                                  "</mapping>",
+                                                  "<layout type=\"log4net.Layout.PatternLayout\">",
+                                                    "<conversionPattern value=\"%date{yyyy-MM-dd HH:mm:ss} [%thread] %level  %message %newline\" />",
+                                                  "</layout>",
+                                                "</appender>",
+
+                                                "<root>",
+                                                  "<level value=\"INFO\" />",
+                                                  "<appender-ref ref=\"RollingFile\" />",
+                                                  "<appender-ref ref=\"ColoredConsoleAppender\" />",
+                                                "</root>",
+                                                "</log4net>",
+                                                "</configuration>"
+                                        ]
+                                    ]
+                                }
+                            },
+                            "c:\\AWS.EC2.Windows.CloudWatch.json": {
+                                "content": {
+                                    "Fn::Join": [
+                                        "\r\n",
+                                        [
+                                            "{\"IsEnabled\": true,",
+                                            "\"EngineConfiguration\": {",
+                                            "\"PollInterval\": \"00:00:15\",",
+                                            "\"Components\": [",
+                                            "{",
+                                            "\"Id\": \"ConnectorLogs\",",
+                                            "\"FullName\": \"AWS.EC2.Windows.CloudWatch.CustomLog.CustomLogInputComponent,AWS.EC2.Windows.CloudWatch\",",
+                                            "\"Parameters\": {",
+                                            "\"LogDirectoryPath\": \"C:\\\\connector\\\\Logs\\\\\",",
+                                            "\"TimestampFormat\": \"yyyy-MM-dd HH:mm:ss\",",
+                                            "\"Encoding\": \"UTF-8\",",
+                                            "\"Filter\": \"\",",
+                                            "\"CultureName\": \"en-US\",",
+                                            "\"TimeZoneKind\": \"UTC\"",
+                                            "}",
+                                            "},",
+                                            "{",
+                                            "\"Id\": \"CloudWatchLogs\",",
+                                            "\"FullName\": \"AWS.EC2.Windows.CloudWatch.CloudWatchLogsOutput,AWS.EC2.Windows.CloudWatch\",",
+                                            "\"Parameters\": {",
+                                            "\"AccessKey\": \"\",",
+                                            "\"SecretKey\": \"\",",
+                                            {
+                                                "Fn::Sub": "\"Region\": \"${AWS::Region}\","
+                                            },
+                                            {
+                                                "Fn::Sub": "\"LogGroup\": \"${LogGroupName}\","
+                                            },
+                                            "\"LogStream\": \"{instance_id}\"",
+                                            "}",
+                                            "}],",
+                                            "\"Flows\": {",
+                                            "\"Flows\": [",
+                                            "\"ConnectorLogs,CloudWatchLogs\"",
+                                            "]",
+                                            "}}}"
+                                        ]
+                                    ]
+                                }
+                            }
+                        },
+                        "commands": {
+                            "1a-install-cli": {
+                                "command": "msiexec.exe /i \"c:\\AWSCLI64.msi\" /QN /L*E \"C:\\install-log.log\"",
+                                "waitAfterCompletion" : "0"
+                            },
+                            "1b-configure-cloudwatch": {
+                                "command": "xcopy \"c:\\AWS.EC2.Windows.CloudWatch.json\" \"c:\\Program Files\\Amazon\\SSM\\Plugins\\awsCloudWatch\\\"",
+                                "waitAfterCompletion": "0"
+                            },
+                            "2-fetch-af-install-kit": {
+                                "command": {
+                                    "Fn::Sub": "\"c:\\Program Files\\Amazon\\AWSCLI\\aws.exe\" s3 sync s3://${QSS3ConnectorBucketName}/${QSS3ConnectorKeyPrefix}af-client \"C:\\AF-Install-Kit\""
+                                },
+                                "waitAfterCompletion": "0"
+                            },
+                            "3-pi-hosts-entry": {
+                                "command": {
+                                    "Fn::Sub": "echo ${PIServerIP} PIHostName >> \"c:\\Windows\\System32\\Drivers\\etc\\hosts\""
+                                },
+                                "waitAfterCompletion": "0"
+                            },
+                            "4-af-hosts-entry": {
+                                "command": {
+                                    "Fn::Sub": "echo ${AFServerIP} AFHostName >> \"c:\\Windows\\System32\\Drivers\\etc\\hosts\""
+                                },
+                                "waitAfterCompletion": "0"
+                            },
+                            "5-install-af-client": {
+                                "command": "cd \"c:\\AF-Install-Kit\" && Setup.exe -f silent.ini"
+                            },
+                            "6-open-ports": {
+                                "command": {
+                                    "Fn::Join": [
+                                        " && ",
+                                        [
+                                            {
+                                                "Fn::Sub": "netsh advfirewall firewall add rule name=\"Open Port PI Server ${PIPort} IN \" dir=in action=allow protocol=TCP localport=${PIPort}"
+                                            },
+                                            {
+                                                "Fn::Sub": "netsh advfirewall firewall add rule name=\"Open Port PI Server ${PIPort} OUT \" dir=out action=allow protocol=TCP localport=${PIPort}"
+                                            },
+                                            {
+                                                "Fn::Sub": "netsh advfirewall firewall add rule name=\"Open Port AF Server ${AFPort} OUT \" dir=out action=allow protocol=TCP localport=${AFPort}"
+                                            },
+                                            {
+                                                "Fn::Sub": "netsh advfirewall firewall add rule name=\"Open Port AF Server ${AFPort} IN \" dir=in action=allow protocol=TCP localport=${AFPort}"
+                                            },
+                                            "netsh advfirewall firewall add rule name=\"Open Port VPN 1723 IN \" dir=in action=allow protocol=TCP localport=1723",
+                                            "netsh advfirewall firewall set rule group=\"network discovery\" new enable=yes"
+                                        ]
+                                    ]
+                                },
+                                "waitAfterCompletion": "0"
+                            },
+                            "7-download-connector": {
+                                "command": {
+                                    "Fn::Sub": "\"c:\\Program Files\\Amazon\\AWSCLI\\aws.exe\" s3 sync s3://${QSS3ConnectorBucketName}/${QSS3ConnectorKeyPrefix}connector \"C:\\connector\""
+                                },
+                                "waitAfterCompletion": "0"
+                            },
+                            "8a-download-and-config-nssm": {
+                                "command": {
+                                    "Fn::Join": [
+                                        " && ",
+                                        [
+                                            {
+                                                "Fn::Sub": "\"c:\\Program Files\\Amazon\\AWSCLI\\aws.exe\" s3 sync s3://${QSS3ConnectorBucketName}/${QSS3ConnectorKeyPrefix}nssm \"C:\\nssm\""
+                                            },
+                                            "\"C:\\nssm\\win64\\nssm.exe\" install pi2aws-connector \"C:\\connector\\PI2AWSConnector.exe\"",
+                                            "\"C:\\nssm\\win64\\nssm.exe\" set pi2aws-connector Start SERVICE_AUTO_START"
+                                        ]
+                                    ]
+                                },
+                                "waitAfterCompletion": "0"
+                            },
+                            "8b-set-up-wis": {
+                                "command": {
+                                    "Fn::If": [
+                                        "UseWIS",
+                                        "schtasks /create /tn \"vpnconn\" /sc onstart /delay 0000:30 /rl highest /ru system /tr \"powershell -file 'C:\\wis.ps1' >> 'C:\\wis.log 2>&1'\"",
+                                        "\n"
+                                    ]
+                                },
+                                "waitAfterCompletion": "15"
+                            },
+                            "9-run-connector": {
+                                "command": {
+                                    "Fn::If": [
+                                        "UseWIS",
+                                        "schtasks /run /tn \"vpnconn\"",
+                                        "\"C:\\nssm\\win64\\nssm.exe\" start pi2aws-connector"
+                                    ]
+                                },
+                                "waitAfterCompletion": "0"
+                            }
+                        }
+                    }
+                }
+            },
+            "Properties": {
+                "InstanceType": {
+                    "Ref": "InstanceType"
+                },
+                "ImageId": {
+                    "Fn::FindInMap": [
+                        "AWSRegion2AMI",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        "Windows2016"
+                    ]
+                },
+                "IamInstanceProfile": {
+                    "Ref": "ConnectorInstanceProfileARN"
+                },
+                "SecurityGroups": [
+                    {
+                        "Ref": "PI2AWSSecurityGroup"
+                    }
+                ],
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "<powershell>\n",
+                                "cfn-init.exe -v --stack ",
+                                {
+                                    "Ref": "AWS::StackName"
+                                },
+                                " --resource PI2AWSConnectorLaunchConfiguration",
+                                " --region ",
+                                {
+                                    "Ref": "AWS::Region"
+                                },
+                                "\n",
+                                "Restart-Service AmazonSSMAgent",
+                                "\n",
+                                "cfn-signal.exe -e $lastExitCode --stack ",
+                                {
+                                    "Ref": "AWS::StackName"
+                                },
+                                " --resource PI2AWSConnectorAutoScalingGroup",
+                                " --region ",
+                                {
+                                    "Ref": "AWS::Region"
+                                },
+                                "\n",
+                                "</powershell>"
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
+        "PI2AWSConnectorAutoScalingGroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "LaunchConfigurationName": {
+                    "Ref": "PI2AWSConnectorLaunchConfiguration"
+                },
+                "VPCZoneIdentifier": [
+                    {
+                        "Ref": "PublicSubnet1ID"
+                    },
+                    {
+                        "Ref": "PublicSubnet2ID"
+                    }
+                ],
+                "MinSize": "1",
+                "MaxSize": "1",
+                "Cooldown": "300",
+                "DesiredCapacity": "1",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Sub": "PI2AWSConnector-${QSDeploymentSuffix}"
+                        },
+                        "PropagateAtLaunch": "true"
+                    }
+                ]
+            },
+            "CreationPolicy": {
+                "ResourceSignal": {
+                    "Count": "1",
+                    "Timeout": "PT30M"
+                }
+            }
+        },
+        "ConnectorLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+                "LogGroupName": {
+                    "Ref": "LogGroupName"
+                }
+            }
+        },
+        "ConnectorStream": {
+            "Type": "AWS::Logs::LogStream",
+            "Properties": {
+                "LogGroupName": {
+                    "Ref": "ConnectorLogGroup"
+                }
+            }
+        },
+        "KinesisPushedRecordsMetricFilter": {
+            "Type": "AWS::Logs::MetricFilter",
+            "Properties": {
+                "FilterPattern": "{ $.entityName = \"KinesisRecordPushedMetric\"}",
+                "LogGroupName": { "Ref": "ConnectorLogGroup" },
+                "MetricTransformations": [
+                    {
+                        "MetricName": {"Fn::Join": ["-", [{ "Ref": "ConnectorStream" }, "Kinesis"]]},
+                        "MetricNamespace": { "Ref": "MetricNamespaceName" },
+                        "MetricValue": "$.value"
+                    }
+                ]
+            }
+        },
+        "SubscribedPointsMetricsFilter": {
+            "Type": "AWS::Logs::MetricFilter",
+            "Properties": {
+                "FilterPattern": "{ $.entityName = \"SubscriptionPointsMetric\"}",
+                "LogGroupName": { "Ref": "ConnectorLogGroup" },
+                "MetricTransformations": [
+                    {
+                        "MetricName": {"Fn::Join": ["-", [{ "Ref": "ConnectorStream" }, "Subscription"]]},
+                        "MetricNamespace": { "Ref": "MetricNamespaceName" },
+                        "MetricValue": "$.value"
+                    }
+                ]
+            }
+        },
+        "LogsToElastisearchLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "RegionalLambdaBucketName"
+                    },
+                    "S3Key": "lambda_deployment_package.zip"
+                },
+                "Description": "Send metrics from CloudWatch to Elastisearch",
+                "Environment": {
+                    "Variables": {
+                        "ES_DOMAIN_ENDPOINT": {
+                            "Ref": "ElasticsearchDomainEndpoint"
+                        }
+                    }
+                },
+                "Handler": "lambdas/logs_to_es_lambda.handler",
+                "Role": {
+                    "Ref": "LogsToElasticsearchRoleARN"
+                },
+                "Runtime": "nodejs4.3",
+                "Timeout": 30
+            }
+        },
+        "LogsToElastisearchLambdaPermission": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "FunctionName": {
+                    "Fn::GetAtt": [
+                        "LogsToElastisearchLambda",
+                        "Arn"
+                    ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "logs.amazonaws.com"
+            }
+        },
+        "LogsToElastisearchSubcriptionFilter": {
+            "Type": "AWS::Logs::SubscriptionFilter",
+            "Properties": {
+                "DestinationArn": {
+                    "Fn::GetAtt": [
+                        "LogsToElastisearchLambda",
+                        "Arn"
+                    ]
+                },
+                "FilterPattern": "",
+                "LogGroupName": {
+                    "Ref": "LogGroupName"
+                }
+            },
+            "DependsOn": "LogsToElastisearchLambdaPermission"
+        }
+    }
+}

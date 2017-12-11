@@ -1,0 +1,130 @@
+[
+  {
+      "ParameterKey": "QSDeploymentSuffix",
+      "ParameterValue": "d"
+  },
+  {
+      "ParameterKey": "RemoteAccessCIDR",
+      "ParameterValue": "1.1.1.1/32"
+  },
+  {
+      "ParameterKey": "VPCDefinition",
+      "ParameterValue": "QuickstartDefault"
+  },
+  {
+      "ParameterKey": "AvailabilityZones",
+      "ParameterValue": "$[alfred_genaz_2]"
+  },
+  {
+      "ParameterKey": "KeyName",
+      "ParameterValue": "$[alfred_getkeypair]"
+  },
+  {
+      "ParameterKey": "AFDomainName",
+      "ParameterValue": "AFDomainName"
+  },
+  {
+      "ParameterKey": "AFPassword",
+      "ParameterValue": "$[alfred_genpass_16]"
+  },
+  {
+      "ParameterKey": "AFPort",
+      "ParameterValue": "5450"
+  },
+  {
+      "ParameterKey": "AfStructureDatabase",
+      "ParameterValue": "NuGreen"
+  },
+  {
+      "ParameterKey": "AFUser",
+      "ParameterValue": "AFUser"
+  },
+  {
+      "ParameterKey": "AFServerIP",
+      "ParameterValue": "1.1.1.1"
+  },
+  {
+      "ParameterKey": "PIServerIP",
+      "ParameterValue": "1.1.1.1"
+  },
+  {
+      "ParameterKey": "PIUser",
+      "ParameterValue": "PIUser"
+  },
+  {
+      "ParameterKey": "PIPassword",
+      "ParameterValue": "$[alfred_genpass_16]"
+  },
+  {
+      "ParameterKey": "PIPort",
+      "ParameterValue": "5450"
+  },
+  {
+      "ParameterKey": "ConnectorInstanceType",
+      "ParameterValue": "t2.micro"
+  },
+  {
+      "ParameterKey": "QSS3ConnectorBucketName",
+      "ParameterValue": "pi2aws-connector-repository"
+  },
+  {
+      "ParameterKey": "QSS3ConnectorKeyPrefix",
+      "ParameterValue": "osisoft-pi2aws/"
+  },
+  {
+      "ParameterKey": "LogGroupNamePrefix",
+      "ParameterValue": "ConnectorLogGroup"
+  },
+  {
+      "ParameterKey": "MetricNamespaceNamePrefix",
+      "ParameterValue": "ConnectorMetricNamespace"
+  },
+  {
+      "ParameterKey": "WorkerInstanceType",
+      "ParameterValue": "t2.micro"
+  },
+  {
+      "ParameterKey": "InstanceType",
+      "ParameterValue": "t2.micro"
+  },
+  {
+      "ParameterKey": "ApplicationPassword",
+      "ParameterValue": "$[alfred_genpass_16]"
+  },
+  {
+      "ParameterKey": "MaxIndexAge",
+      "ParameterValue": "7"
+  },
+  {
+      "ParameterKey": "ElasticsearchNodeCount",
+      "ParameterValue": "1"
+  },
+  {
+      "ParameterKey": "ElasticsearchNodeType",
+      "ParameterValue": "t2.small.elasticsearch"
+  },
+  {
+      "ParameterKey": "ReadCapacity",
+      "ParameterValue": "1"
+  },
+  {
+      "ParameterKey": "WriteCapacity",
+      "ParameterValue": "1"
+  },
+  {
+      "ParameterKey": "EnableS3LifecycleRules",
+      "ParameterValue": "yes"
+  },
+  {
+      "ParameterKey": "IATransitionPeriodInDays",
+      "ParameterValue": "90"
+  },
+  {
+      "ParameterKey": "GlacierTransitionPeriodInDays",
+      "ParameterValue": "365"
+  },
+  {
+    "ParameterKey": "ApplicationUser",
+    "ParameterValue": "ConsoleAdmin"
+  }
+]

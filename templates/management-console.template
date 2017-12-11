@@ -1,0 +1,416 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "AWS Cloudformation template to create EC2 instance and run Webapp Management Console. **WARNING** This template creates an Amazon EC2 instance. You will be billed for the AWS resources used if you create a stack from this template.",
+    "Parameters": {
+        "QSS3BucketName": {
+            "Description": "S3 bucket name for the repository. Repository bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
+            "Type": "String"
+        },
+        "QSS3KeyPrefix": {
+            "Description": "S3 key prefix for the repository. Repository key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with forward slash (/) because they are automatically appended.",
+            "Type": "String"
+        },
+        "InstanceType": {
+            "Description": "Webapp EC2 instance type",
+            "Type": "String",
+            "Default": "t2.micro",
+            "AllowedValues": [
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },
+        "KeyName": {
+            "Description": "Name of an existing EC2 KeyPair to enable SSH access to the instance",
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "ConstraintDescription": "Can contain only ASCII characters."
+        },
+        "VpcId": {
+            "Description": "Web server VPC",
+            "Type": "AWS::EC2::VPC::Id"
+        },
+        "VPCCIDR": {
+            "Description": "CIDR block for the VPC",
+            "Type": "String"
+        },
+        "PrivateSubnet1ID": {
+            "Description": "Webapp subnet 1",
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "PrivateSubnet2ID": {
+            "Description": "Webapp subnet 2",
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "PublicSubnet1ID": {
+            "Description": "Elastic load balancer subnet 1",
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "PublicSubnet2ID": {
+            "Description": "Elastic load balancer subnet 2",
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "NumWebServerInstances": {
+            "Description": "Number or web server instances in Auto scaling group",
+            "Type": "Number",
+            "Default": 1
+        },
+        "ApplicationUser": {
+            "Description": "Web App user",
+            "Type": "String"
+        },
+        "ApplicationPassword": {
+            "Description": "Web App password",
+            "Type": "String"
+        },
+        "IncomingQueueName": {
+            "Description": "Name of incomning SQS queue",
+            "Type": "String"
+        },
+        "AfStructureDatabase": {
+            "Description": "AF Structure Database",
+            "Type": "String"
+        },
+        "PiPointsTableName": {
+            "Description": "PI points table name",
+            "Type": "String"
+        },
+        "EventsStatusTableName": {
+            "Description": "Table name for dynamodb database which holds state of point updates",
+            "Type": "String"
+        },
+        "ManagementConsoleInstanceProfileARN": {
+            "Type": "String"
+        },
+        "QSDeploymentSuffix": {
+            "Type": "String",
+            "Description": "Deployment suffix for making resouce names unique"
+        },
+        "CuratedDatasetsBucketName": {
+            "Type": "String"
+        },
+        "PublishedDataBucketName": {
+            "Type": "String"
+        },
+        "AthenaDatabaseName": {
+            "Type": "String",
+            "Description": "Athena database name with table with managed feeds"
+        },
+        "AthenaTableName": {
+            "Type": "String",
+            "Description": "Athena table name with managed feeds"
+        }
+    },
+    "Mappings": {
+        "RegionMap": {
+            "us-east-1": {
+                "AMI": "ami-c58c1dd3"
+            },
+            "us-east-2": {
+                "AMI": "ami-4191b524"
+            },
+            "us-west-2": {
+                "AMI": "ami-4836a428"
+            },
+            "eu-west-1": {
+                "AMI": "ami-acd005d5"
+            }
+        }
+    },
+    "Resources": {
+        "WebAppAutoScalingGroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "LaunchConfigurationName": {
+                    "Ref": "WebAppLaunchConfiguration"
+                },
+                "VPCZoneIdentifier": [
+                    {
+                        "Ref": "PrivateSubnet1ID"
+                    },
+                    {
+                        "Ref": "PrivateSubnet2ID"
+                    }
+                ],
+                "MinSize": {
+                    "Ref": "NumWebServerInstances"
+                },
+                "MaxSize": {
+                    "Ref": "NumWebServerInstances"
+                },
+                "Cooldown": "300",
+                "DesiredCapacity": {
+                    "Ref": "NumWebServerInstances"
+                },
+                "LoadBalancerNames": [
+                    {
+                        "Ref": "ElasticLoadBalancer"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Sub": "WebappManagementConsole-${QSDeploymentSuffix}"
+                        },
+                        "PropagateAtLaunch": "true"
+                    }
+                ]
+            },
+            "CreationPolicy": {
+                "ResourceSignal": {
+                    "Count": {
+                        "Ref": "NumWebServerInstances"
+                    },
+                    "Timeout": "PT15M"
+                }
+            },
+            "UpdatePolicy": {
+                "AutoScalingReplacingUpdate": {
+                    "WillReplace": true
+                }
+            }
+        },
+        "WebAppLaunchConfiguration": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Metadata": {
+                "Comment": "Install Web App Server",
+                "AWS::CloudFormation::Init": {
+                    "config": {
+                        "packages": {
+                            "yum": {
+                                "python35": [],
+                                "python35-pip": [],
+                                "python35-devel": []
+                            }
+                        },
+                        "files": {
+                            "/etc/production.ini": {
+                                "content": {
+                                    "Fn::Join": [
+                                        "\n",
+                                        [
+                                            "[general]",
+                                            {
+                                                "Fn::Sub": "region=${AWS::Region}"
+                                            },
+                                            "[webapp]",
+                                            "port=4000",
+                                            {
+                                                "Fn::Sub": "webapp_username=${ApplicationUser}"
+                                            },
+                                            {
+                                                "Fn::Sub": "webapp_password=${ApplicationPassword}"
+                                            },
+                                            "[aws]",
+                                            {
+                                                "Fn::Sub": "curated_datasets_bucket_name=${CuratedDatasetsBucketName}"
+                                            },
+                                            {
+                                                "Fn::Sub": "published_datasets_bucket_name=${PublishedDataBucketName}"
+                                            },
+                                            {
+                                                "Fn::Sub": "incoming_queue_name=${IncomingQueueName}"
+                                            },
+                                            {
+                                                "Fn::Sub": "af_structure_database=${AfStructureDatabase}"
+                                            },
+                                            {
+                                                "Fn::Sub": "pi_points_table_name=${PiPointsTableName}"
+                                            },
+                                            {
+                                                "Fn::Sub": "events_status_table_name=${EventsStatusTableName}"
+                                            },
+                                            {
+                                                "Fn::Sub": "athena_table_name=${AthenaTableName}"
+                                            },
+                                            {
+                                                "Fn::Sub": "athena_database_name=${AthenaDatabaseName}"
+                                            },
+                                            "s3_rule_bucket_key_prefix=rules"
+                                        ]
+                                    ]
+                                },
+                                "mode": "000444",
+                                "owner": "ec2-user",
+                                "group": "ec2-user"
+                            },
+                            "/etc/bootstrap.sh": {
+                                "content": {
+                                    "Fn::Join": [
+                                        "\n",
+                                        [
+                                            "# Install npm",
+                                            "curl --silent --location https://rpm.nodesource.com/setup_8.x | bash -",
+                                            "yum -y install nodejs",
+                                            "# Download files from S3",
+                                            "cd /home/ec2-user",
+                                            {
+                                                "Fn::Sub": "aws s3 cp s3://${QSS3BucketName}/${QSS3KeyPrefix}assets/assets.zip ."
+                                            },
+                                            "unzip assets.zip",
+                                            "rm assets.zip",
+                                            "# Install dependencies and build webapp",
+                                            "cd /home/ec2-user/assets/webapp_management_console/new_app",
+                                            "npm install",
+                                            "npm run build",
+                                            "# Install Python requirements",
+                                            "cd /home/ec2-user/assets",
+                                            "pip-3.5 install -r /home/ec2-user/assets/webapp_management_console/webapp-requirements.txt",
+                                            "python3.5 setup.py develop",
+                                            "chown -R ec2-user:ec2-user /home/ec2-user"
+                                        ]
+                                    ]
+                                },
+                                "mode": "000770",
+                                "owner": "ec2-user",
+                                "group": "ec2-user"
+                            }
+                        },
+                        "commands": {
+                            "1_run_bootstrap": {
+                                "command": "sh -e /etc/bootstrap.sh"
+                            },
+                            "9_run_webserver": {
+                                "command": "runuser -l ec2-user -c \"python3.5 /home/ec2-user/assets/webapp_management_console/app.py --config /etc/production.ini > server.log 2>&1 &\""
+                            }
+                        }
+                    }
+                }
+            },
+            "Properties": {
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "IamInstanceProfile": {
+                    "Ref": "ManagementConsoleInstanceProfileARN"
+                },
+                "InstanceType": {
+                    "Ref": "InstanceType"
+                },
+                "ImageId": {
+                    "Fn::FindInMap": [
+                        "RegionMap",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        "AMI"
+                    ]
+                },
+                "SecurityGroups": [
+                    {
+                        "Ref": "InstanceSecurityGroup"
+                    }
+                ],
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "#!/bin/bash\n",
+                                "yum update -y\n",
+                                "yum install -y aws-cfn-bootstrap\n",
+                                "# Install the files and packages from the metadata\n",
+                                {
+                                    "Fn::Sub": "/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WebAppLaunchConfiguration --region ${AWS::Region}\n"
+                                },
+                                "# Signal the status from cfn-init\n",
+                                {
+                                    "Fn::Sub": "/opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource WebAppAutoScalingGroup --region ${AWS::Region}\n"
+                                }
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
+        "InstanceSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VpcId"
+                },
+                "GroupDescription": "Enable access via port 4000 for WebApp and via port 22 from Bastion",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "4000",
+                        "ToPort": "4000",
+                        "SourceSecurityGroupId": {
+                            "Ref": "ELBSecurityGroup"
+                        }
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "22",
+                        "ToPort": "22",
+                        "CidrIp": {
+                            "Ref": "VPCCIDR"
+                        }
+                    }
+                ]
+            }
+        },
+        "ElasticLoadBalancer": {
+            "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+            "Properties": {
+                "Listeners": [
+                    {
+                        "LoadBalancerPort": "80",
+                        "InstancePort": "4000",
+                        "Protocol": "HTTP"
+                    }
+                ],
+                "Subnets": [
+                    {
+                        "Ref": "PublicSubnet1ID"
+                    },
+                    {
+                        "Ref": "PublicSubnet2ID"
+                    }
+                ],
+                "SecurityGroups": [
+                    {
+                        "Ref": "ELBSecurityGroup"
+                    }
+                ],
+                "ConnectionSettings": {
+                    "IdleTimeout": "180"
+                }
+            }
+        },
+        "ELBSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VpcId"
+                },
+                "GroupDescription": "Enable Elastic Load Balancer access via port 80",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ]
+            }
+        }
+    },
+    "Outputs": {
+        "WebAppEndpoint": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "ElasticLoadBalancer",
+                    "CanonicalHostedZoneName"
+                ]
+            },
+            "Description": "Web application Elastic Load Balancer URL"
+        }
+    }
+}
