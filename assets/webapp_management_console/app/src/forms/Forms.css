@@ -1,0 +1,9 @@
+.onTop {
+    position: relative;
+    z-index: 4
+}
+
+.managed-feeds-list {
+    max-height: 300px;
+    overflow: auto;
+}

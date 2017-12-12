@@ -60,9 +60,6 @@ class ManagedFeedsManager:
     def get_pi_points(self):
         return self.managed_feeds_dao.list_pi_points()
 
-    def get_managed_feeds(self):
-        return self.managed_feeds_dao.list_managed_feeds()
-
     # Subscribe/unsubscribe
 
     def send_subscribe_request(self, pi_points, pi_points_assets=None):

@@ -1,0 +1,39 @@
+{
+  "name": "app",
+  "version": "0.1.0",
+  "private": true,
+  "proxy": "http://localhost:4004",
+  "dependencies": {
+    "cronstrue": "^0.10.10",
+    "es6-promise": "^4.1.1",
+    "halogenium": "^2.2.2",
+    "isomorphic-fetch": "^2.2.1",
+    "later": "^1.2.0",
+    "moment": "^2.19.1",
+    "react": "^16.0.0",
+    "react-bootstrap": "^0.31.5",
+    "react-bootstrap-table": "^4.1.4",
+    "react-datetime": "^2.10.3",
+    "react-dom": "^16.0.0",
+    "react-redux": "^5.0.6",
+    "react-router": "^4.2.0",
+    "react-router-bootstrap": "^0.24.4",
+    "react-router-dom": "^4.2.2",
+    "react-scripts": "1.0.14",
+    "react-select": "^1.0.0-rc.10",
+    "redux": "^3.7.2",
+    "redux-logger": "^3.0.6",
+    "redux-thunk": "^2.2.0"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test --env=jsdom",
+    "eject": "react-scripts eject"
+  },
+  "devDependencies": {
+    "bootstrap": "^3.3.7",
+    "less": "^2.7.3",
+    "redux-devtools": "^3.4.0"
+  }
+}

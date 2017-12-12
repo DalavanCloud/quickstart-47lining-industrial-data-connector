@@ -4,7 +4,12 @@
     "Parameters": {
         "QSDeploymentSuffix": {
             "Type": "String",
-            "Description": "Deployment suffix for making resource names unique"
+            "Default": "qs",
+            "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
+            "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
+            "AllowedPattern": "[a-z0-9]+",
+            "MinLength": 1,
+            "MaxLength": 7
         },
         "AthenaTablePartitionLambdaRoleARN": {
             "Type":"String"
@@ -16,16 +21,20 @@
             "Type": "String"
         },
         "EnableS3LifecycleRules": {
-            "Description": "Enable lifecycle rules on S3 bucket",
-            "Type": "String"
+            "Description": "Enable S3 lifecycle rules",
+            "Type": "String",
+            "AllowedValues": ["yes", "no"],
+            "Default": "yes"
         },
         "IATransitionPeriodInDays": {
-            "Description": "Number of days after which data is transitioned to IA",
-            "Type": "Number"
+            "Description": "Number of days after which data is transitioned to IA.",
+            "Type": "Number",
+            "Default": 90
         },
         "GlacierTransitionPeriodInDays": {
-            "Description": "Number of days after which data is transitioned to Glacier",
-            "Type": "Number"
+            "Description": "Number of days after which data is transitioned to Glacier.",
+            "Type": "Number",
+            "Default": 365
         },
         "CuratedDatasetsBucketName": {
             "Type": "String"
@@ -52,6 +61,7 @@
     "Resources": {
         "CuratedDatasetsBucket": {
             "Type": "AWS::S3::Bucket",
+            "DeletionPolicy" : "Retain",
             "Properties": {
                 "BucketName": {
                     "Ref": "CuratedDatasetsBucketName"
@@ -234,7 +244,16 @@
             "Value": {
                 "Ref": "CuratedDatasetsBucket"
             },
-            "Description": "Curated datasets bucket name that contains managed feeds"
+            "Description": "Bucket name for Curated Datasets"
+        },
+        "CuratedDatasetsBucketARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "CuratedDatasetsBucket",
+                    "Arn"
+                ]
+            },
+            "Description": "Curated datasets bucket ARN that contains managed feeds"
         },
         "AthenaDatabaseName": {
             "Value": {

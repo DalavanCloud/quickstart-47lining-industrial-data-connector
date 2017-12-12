@@ -19,14 +19,13 @@ from flask import (
 )
 from osisoft_pi2aws_root import PROJECT_DIR
 from service.publishing_manager import PublishingManager
-from utils.piaf.PI_AF_structure_converter import PIAFStructureConverter
 from utils.piaf.af_structure_browser import AfStructureBrowser
 from workers.managed_feeds.managed_feeds_manager import ManagedFeedsManager
 
 from webapp_management_console.app_exceptions import BackendException, raise_backend_exception
 
 
-REACT_FOLDER = os.path.join(PROJECT_DIR, 'webapp_management_console/new_app/build')
+REACT_FOLDER = os.path.join(PROJECT_DIR, 'webapp_management_console/app/build')
 app = Flask(
     __name__,
     template_folder=REACT_FOLDER,
@@ -101,10 +100,9 @@ def af_view():
         log.error("Cannot acquire AF structure")
         result = {}
     else:
-        structure = PIAFStructureConverter(structure).convert_flat_to_tree()
         result = {
-            'menu': _get_menu_tree(structure),
-            'nodes': _flatten_tree(structure)
+            'menu': _get_menu_tree([structure]),
+            'nodes': _flatten_tree([structure])
         }
     return jsonify(result)
 
@@ -144,13 +142,17 @@ def _flatten_tree(nodes):
 @login_required
 def backfill():
     feed_manager = _create_managed_feeds_manager(app.config)
+    if request.json.get('allPoints', False):
+        points = _get_all_pi_points(feed_manager)
+    else:
+        points = request.json['feeds']
 
     query_syntax = request.json.get('syntax', False)
 
     feed_manager.send_backfill_request(
         query_syntax=query_syntax,
         query=request.json.get('query'),
-        feeds=request.json['feeds'],
+        feeds=points,
         request_to=request.json.get('to'),
         request_from=request.json.get('from'),
         name=request.json.get('name')
@@ -166,9 +168,14 @@ def interpolate():
     feed_manager = _create_managed_feeds_manager(app.config)
     query_syntax = request.json.get('syntax', False)
 
+    if request.json.get('allPoints', False):
+        points = _get_all_pi_points(feed_manager)
+    else:
+        points = request.json['feeds']
+
     feed_manager.send_interpolate_request(
         query_syntax=query_syntax,
-        feeds=request.json['feeds'],
+        feeds=points,
         interval=request.json['interval'],
         interval_unit=request.json['intervalUnit'],
         query=request.json.get('query'),
@@ -228,6 +235,26 @@ def unsubscribe_from_pi_point():
     return "OK"
 
 
+@app.route('/pi-point/subscribe/all', methods=['POST'])
+@raise_backend_exception('Cannot subscribe to PI Point')
+@login_required
+def subscribe_to_all_pi_point():
+    feed_manager = _create_managed_feeds_manager(app.config)
+    points = _get_all_pi_points(feed_manager)
+    feed_manager.send_subscribe_request(points)
+    return "OK"
+
+
+@app.route('/pi-point/unsubscribe/all', methods=['POST'])
+@raise_backend_exception('Cannot unubscribe PI Point')
+@login_required
+def unsubscribe_from_all_pi_point():
+    feed_manager = _create_managed_feeds_manager(app.config)
+    points = _get_all_pi_points(feed_manager)
+    feed_manager.send_unsubscribe_request(points)
+    return "OK"
+
+
 @app.route('/pi-point/get-subscribed', methods=['GET'])
 @raise_backend_exception('Cannot get subscribed PI Points')
 @login_required
@@ -279,8 +306,7 @@ def search_af_structure():
     )
     feed_manager = _create_managed_feeds_manager(app.config)
     structure = feed_manager.get_latest_af_structure(database=app.config['af_structure_database'])
-    structure = PIAFStructureConverter(structure).convert_flat_to_tree()
-    result = browser.search_assets(structure)
+    result = browser.search_assets([structure])
     return jsonify(result)
 
 
@@ -311,6 +337,11 @@ def get_athena_info():
         'athena_database': athena_database,
         'athena_table_name': athena_table_name
     })
+
+
+def _get_all_pi_points(feed_manager):
+    pi_points = feed_manager.get_pi_points()
+    return [pi_point['pi_point'] for pi_point in pi_points]
 
 
 def _create_managed_feeds_manager(config):

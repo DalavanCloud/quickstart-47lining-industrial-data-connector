@@ -39,7 +39,11 @@ class AfStructureBrowser(object):
 
     @staticmethod
     def _match_asset_field_with_query(asset, query, field):
-        if not field in asset or asset[field] is None:
+        field_not_present = field not in asset \
+                           or asset[field] is None \
+                           or (isinstance(asset[field], list) and len(asset[field]) == 0)
+
+        if field_not_present:
             return query == ".*"
 
         if field != 'categories':
@@ -53,7 +57,11 @@ class AfStructureBrowser(object):
 
     @staticmethod
     def _match_attribute_field_with_query(attribute, query, field):
-        if not field in attribute or attribute[field] is None:
+        field_not_present = field not in attribute \
+                           or attribute[field] is None \
+                           or (isinstance(attribute[field], list) and len(attribute[field]) == 0)
+
+        if field_not_present:
             return query == ".*"
 
         if field != 'categories':

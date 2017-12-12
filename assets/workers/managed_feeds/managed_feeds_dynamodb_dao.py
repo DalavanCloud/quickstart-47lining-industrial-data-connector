@@ -1,48 +1,73 @@
 import datetime
 import functools
 import os
-import heapq
 import json
 import logging
 from time import sleep
 
-from boto3.dynamodb.conditions import Attr, Key
+import itertools
+from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
 log = logging.getLogger(__name__)
 
-DYNAMO_THROTTLING_ERROR_CODES = [
-    'ProvisionedThroughputExceededException',
-    'ThrottlingException'
-]
-MIN_DYNAMO_SLEEP_SECONDS = 0
-MAX_DYNAMO_SLEEP_SECONDS = 120
 
+def dynamo_throttle(min_sleep=0, max_sleep=120, collect_single_item=False, collect_many_items=False):
+    DYNAMO_THROTTLING_ERROR_CODES = [
+        'ProvisionedThroughputExceededException',
+        'ThrottlingException'
+    ]
+    sleep_seconds = min_sleep
+    current_action = None
 
-def throttle_and_retry(fun):
+    def handle_throttling_exception(exception):
+        nonlocal sleep_seconds
+        error_code = exception.response['Error']['Code']
+        if error_code not in DYNAMO_THROTTLING_ERROR_CODES:
+            raise exception
+        sleep_seconds = min((sleep_seconds + 0.1) * 2, max_sleep)
+        log.info('Throttling exception, sleeping for {} seconds'.format(sleep_seconds))
+        sleep(sleep_seconds)
 
-    def wrapper(*args, **kwargs):
-        sleep_seconds = MIN_DYNAMO_SLEEP_SECONDS
-        end = False
-        dynamo_actions_gen = fun(*args, **kwargs)
-        dynamo_action = None
-        while not end:
-            try:
-                if dynamo_action is None:
-                    dynamo_action = next(dynamo_actions_gen)
-                dynamo_action()
-                dynamo_action = None
-                sleep_seconds = max(MIN_DYNAMO_SLEEP_SECONDS, sleep_seconds // 2)
-            except ClientError as e:
-                error_code = e.response['Error']['Code']
-                if error_code in DYNAMO_THROTTLING_ERROR_CODES:
-                    sleep_seconds = min((sleep_seconds + 1) * 2, MAX_DYNAMO_SLEEP_SECONDS)
-                else:
-                    raise e
-                sleep(sleep_seconds)
-            except StopIteration:
-                end = True
-    return wrapper
+    def run_next_action(dynamo_actions_generator):
+        nonlocal current_action
+        nonlocal sleep_seconds
+        if current_action is None:
+            current_action = next(dynamo_actions_generator)
+        response = current_action()
+        if 'LastEvaluatedKey' in response:
+            current_action = functools.partial(current_action, ExclusiveStartKey=response['LastEvaluatedKey'])
+        else:
+            current_action = None  # action is completed
+        sleep_seconds = max(min_sleep, sleep_seconds // 2)
+        return response
+
+    def parse_responses(responses):
+        if collect_single_item:
+            assert len(responses) == 1
+            return responses[0]['Item']
+        if collect_many_items:
+            return list(itertools.chain(*[response['Items'] for response in responses]))
+
+    def outer(fun):
+
+        @functools.wraps(fun)
+        def inner(*args, **kwargs):
+            generator_exhausted = False
+            dynamo_actions_generator = fun(*args, **kwargs)
+            responses = []
+            while not generator_exhausted:
+                try:
+                    response = run_next_action(dynamo_actions_generator)
+                    responses.append(response)
+                except ClientError as exception:
+                    handle_throttling_exception(exception)
+                except StopIteration:
+                    generator_exhausted = True
+            return parse_responses(responses)
+        return inner
+
+    return outer
 
 
 class ManagedFeedsDynamodbDao:
@@ -61,39 +86,40 @@ class ManagedFeedsDynamodbDao:
     def get_current_date():
         return datetime.datetime.utcnow().strftime('%Y-%m-%d')
 
+    @dynamo_throttle(collect_many_items=True)
     def recent_events(self, limit):
-        def get_events_for_date(date):
-            return self.events_status_table.query(
+        current_date = datetime.datetime.utcnow()
+        dates = (current_date - datetime.timedelta(days=x) for x in range(0, limit))
+        for date in dates:
+            yield functools.partial(
+                self.events_status_table.query,
                 IndexName='EventDateIndex',
                 KeyConditionExpression=Key('create_date').eq(date.strftime('%Y-%m-%d')),
                 ScanIndexForward=False
-            )['Items']
-        current_date = datetime.datetime.utcnow()
-        dates = [current_date - datetime.timedelta(days=x) for x in range(0, limit)]
-        daily_events = [get_events_for_date(date) for date in dates]
-        return [event for events in daily_events for event in events]
+            )
 
+    @dynamo_throttle(collect_single_item=True)
     def get_event_by_id(self, event_id):
-        response = self.events_status_table.get_item(Key={'id': event_id})
-        return response.get('Item')
+        yield functools.partial(self.events_status_table.get_item, Key={'id': event_id})
 
-    def list_managed_feeds(self):
-        return self.pi_points_table.scan(
-            FilterExpression=Attr('subscription_status').eq('subscribed')
-        )['Items']
-
+    @dynamo_throttle(collect_many_items=True)
     def list_pi_points(self):
-        return self.pi_points_table.scan()['Items']
+        yield functools.partial(self.pi_points_table.scan)
 
-    def get_latest_af_structure(self, database):
-        all_items = self.events_status_table.query(
+    @dynamo_throttle(collect_many_items=True)
+    def _get_af_sync_events(self, database):
+        yield functools.partial(
+            self.events_status_table.query,
             IndexName='EventTimestampIndex',
             KeyConditionExpression=Key('event_type').eq('sync_af'),
             FilterExpression='#DB = :db AND #STATUS = :success',
             ExpressionAttributeNames={"#DB": "database", "#STATUS": "status"},
             ExpressionAttributeValues={":db": database, ":success": "success"},
             ScanIndexForward=False
-        )['Items']
+        )
+
+    def get_latest_af_structure(self, database):
+        all_items = self._get_af_sync_events(database)
 
         if all_items:
             item = all_items[0]
@@ -122,10 +148,10 @@ class ManagedFeedsDynamodbDao:
             f.write(structure)
             f.close()
 
-    @throttle_and_retry
+    @dynamo_throttle()
     def update_pi_points(self, pi_points):
+        all_pi_points = set([point['pi_point'] for point in self.list_pi_points()])
         pi_points = set(pi_points)
-        all_pi_points = set(item['pi_point'] for item in self.pi_points_table.scan()['Items'])
         pi_points_to_remove = all_pi_points - pi_points
         pi_points_to_add = pi_points - all_pi_points
 
@@ -145,10 +171,12 @@ class ManagedFeedsDynamodbDao:
                 }
             )
 
+    @dynamo_throttle()
     def update_pi_points_status(self, pi_points, status):
         assert status in ['pending', 'subscribed', 'unsubscribed']
         for pi_point in pi_points:
-            self.pi_points_table.update_item(
+            yield functools.partial(
+                self.pi_points_table.update_item,
                 Key={'pi_point': pi_point},
                 UpdateExpression="SET subscription_status = :subscription_value, update_timestamp = :timestamp",
                 ExpressionAttributeValues={
@@ -157,6 +185,7 @@ class ManagedFeedsDynamodbDao:
                 }
             )
 
+    @dynamo_throttle()
     def update_event_status(self, id, error_message=None):
         status = 'success' if error_message is None else 'failure'
         expression_attributes = {
@@ -167,7 +196,8 @@ class ManagedFeedsDynamodbDao:
         if error_message is not None:
             expression_attributes[':message'] = error_message
             update_expressions += ', error_message = :message'
-        self.events_status_table.update_item(
+        yield functools.partial(
+            self.events_status_table.update_item,
             ExpressionAttributeNames={
                 "#STATUS": "status"
             },
@@ -176,8 +206,10 @@ class ManagedFeedsDynamodbDao:
             ExpressionAttributeValues=expression_attributes
         )
 
+    @dynamo_throttle()
     def create_sync_pi_points_event(self, id, s3_bucket, s3_key):
-        self.events_status_table.put_item(
+        yield functools.partial(
+            self.events_status_table.put_item,
             Item={
                 'id': id,
                 's3_bucket': s3_bucket,
@@ -189,8 +221,10 @@ class ManagedFeedsDynamodbDao:
             }
         )
 
+    @dynamo_throttle()
     def create_assets_sync_event(self, id, database, s3_bucket, s3_key):
-        self.events_status_table.put_item(
+        yield functools.partial(
+            self.events_status_table.put_item,
             Item={
                 'id': id,
                 'database': database,
@@ -203,22 +237,25 @@ class ManagedFeedsDynamodbDao:
             }
         )
 
+    @dynamo_throttle()
     def create_backfill_event(self, id, pi_points, status, name):
-        item = {
-            'id': id,
-            'pi_points': pi_points,
-            'event_type': 'backfill',
-            'create_date': self.get_current_date(),
-            'update_timestamp': self.get_current_timestamp(),
-            'status': status,
-            'name': name
-        }
-        self.events_status_table.put_item(
-            Item=item
+        yield functools.partial(
+            self.events_status_table.put_item,
+            Item={
+                'id': id,
+                'pi_points': pi_points,
+                'event_type': 'backfill',
+                'create_date': self.get_current_date(),
+                'update_timestamp': self.get_current_timestamp(),
+                'status': status,
+                'name': name
+            }
         )
 
+    @dynamo_throttle()
     def create_interpolation_event(self, id, pi_points, name, status):
-        self.events_status_table.put_item(
+        yield functools.partial(
+            self.events_status_table.put_item,
             Item={
                 'id': id,
                 'pi_points': pi_points,
@@ -230,8 +267,10 @@ class ManagedFeedsDynamodbDao:
             }
         )
 
+    @dynamo_throttle()
     def create_event(self, id, pi_points, event_type):
-        self.events_status_table.put_item(
+        yield functools.partial(
+            self.events_status_table.put_item,
             Item={
                 'id': id,
                 'pi_points': pi_points,

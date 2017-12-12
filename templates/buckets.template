@@ -4,7 +4,12 @@
     "Parameters": {
         "QSDeploymentSuffix": {
             "Type": "String",
-            "Description": "Deployment suffix for making resouce names unique"
+            "Default": "qs",
+            "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
+            "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
+            "AllowedPattern": "[a-z0-9]+",
+            "MinLength": 1,
+            "MaxLength": 7
         }
     },
     "Resources": {
@@ -32,32 +37,9 @@
                 }
             }
         },
-        "ElasticsearchStreamDataBucket": {
-            "Type": "AWS::S3::Bucket",
-            "Properties": {
-                "BucketName": {
-                    "Fn::Join": [
-                        "-",
-                        [
-                            "elasticsearch",
-                            "managed",
-                            "feeds",
-                            {
-                                "Ref": "AWS::AccountId"
-                            },
-                            {
-                                "Ref": "AWS::Region"
-                            },
-                            {
-                                "Ref": "QSDeploymentSuffix"
-                            }
-                        ]
-                    ]
-                }
-            }
-        },
         "SubmissionsBucket": {
             "Type": "AWS::S3::Bucket",
+            "DeletionPolicy" : "Retain",
             "Properties": {
                 "BucketName": {
                     "Fn::Join": [
@@ -80,6 +62,7 @@
         },
         "PublishedDataBucket": {
             "Type": "AWS::S3::Bucket",
+            "DeletionPolicy" : "Retain",
             "Properties": {
                 "BucketName": {
                     "Fn::Join": [
@@ -117,30 +100,17 @@
             },
             "Description": "RegionalLambdaBucket bucket name"
         },
-        "ElasticsearchStreamDataBucketARN":{
-            "Value": {
-                "Fn::GetAtt": [
-                    "ElasticsearchStreamDataBucket",
-                    "Arn"
-                ]
-            }
-        },
-        "ElasticsearchStreamDataBucketName":{
-            "Value": {
-                "Ref": "ElasticsearchStreamDataBucket"
-            }
-        },
         "SubmissionsBucketName": {
             "Value": {
                 "Ref": "SubmissionsBucket"
             },
-            "Description": "Submissions bucket name"
+            "Description": "Bucket name for submissions"
         },
         "PublishedDataBucketName": {
             "Value": {
                 "Ref": "PublishedDataBucket"
             },
-            "Description": "Published data bucket name"
+            "Description": "Bucket name for Published Data"
         }
     }
 }

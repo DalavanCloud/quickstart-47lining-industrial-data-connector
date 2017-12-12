@@ -1,17 +1,23 @@
 {
     "AWSTemplateFormatVersion": "2010-09-09",
-    "Description": "AWS Cloudformation template to create EC2 instance and run Webapp Management Console. **WARNING** This template creates an Amazon EC2 instance. You will be billed for the AWS resources used if you create a stack from this template.",
+    "Description": "AWS Cloudformation template to create EC2 instance and run Management Console app. **WARNING** This template creates an Amazon EC2 instance. You will be billed for the AWS resources used if you create a stack from this template.",
     "Parameters": {
         "QSS3BucketName": {
-            "Description": "S3 bucket name for the repository. Repository bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
-            "Type": "String"
+            "ConstraintDescription": "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
+            "Description": "S3 bucket where the templates and scripts are installed. Use this parameter to specify the S3 bucket name you've created for your copy of Quick Start assets, if you decide to customize or extend the Quick Start for your own use. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens, but should not start or end with a hyphen.",
+            "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
+            "Type": "String",
+            "Default": "quickstart-reference"
         },
         "QSS3KeyPrefix": {
-            "Description": "S3 key prefix for the repository. Repository key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with forward slash (/) because they are automatically appended.",
-            "Type": "String"
+            "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
+            "ConstraintDescription": "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
+            "Description": "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
+            "Type": "String",
+            "Default": "osisoft/47lining/latest/"
         },
         "InstanceType": {
-            "Description": "Webapp EC2 instance type",
+            "Description": "Management Console EC2 instance type",
             "Type": "String",
             "Default": "t2.micro",
             "AllowedValues": [
@@ -20,9 +26,12 @@
                 "t2.small",
                 "t2.medium",
                 "t2.large",
-                "m3.large",
-                "m3.xlarge",
-                "m3.2xlarge"
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m5.large",
+                "m5.xlarge",
+                "m5.2xlarge"
             ],
             "ConstraintDescription": "must be a valid EC2 instance type."
         },
@@ -32,7 +41,7 @@
             "ConstraintDescription": "Can contain only ASCII characters."
         },
         "VpcId": {
-            "Description": "Web server VPC",
+            "Description": "Management Console server VPC",
             "Type": "AWS::EC2::VPC::Id"
         },
         "VPCCIDR": {
@@ -40,11 +49,11 @@
             "Type": "String"
         },
         "PrivateSubnet1ID": {
-            "Description": "Webapp subnet 1",
+            "Description": "Management Console subnet 1",
             "Type": "AWS::EC2::Subnet::Id"
         },
         "PrivateSubnet2ID": {
-            "Description": "Webapp subnet 2",
+            "Description": "Management Console subnet 2",
             "Type": "AWS::EC2::Subnet::Id"
         },
         "PublicSubnet1ID": {
@@ -61,19 +70,28 @@
             "Default": 1
         },
         "ApplicationUser": {
-            "Description": "Web App user",
+            "AllowedPattern": "^[\\x00-\\x7F]*$",
+            "ConstraintDescription": "User name must contain 1 to 64 ASCII characters.",
+            "Default": "ConsoleAdmin",
+            "Description": "The user name for the Management Console. Consisting of 1-64 ASCII characters.",
+            "MaxLength": "64",
+            "MinLength": "1",
             "Type": "String"
         },
         "ApplicationPassword": {
-            "Description": "Web App password",
-            "Type": "String"
+             "Description": "Password for Management Console User. Password must contain 8 to 64 printable ASCII characters excluding: /, \", ', \\ and @. It must contain 1 uppercase letter, 1 lowercase letter, and 1 number.",
+            "Type": "String",
+            "NoEcho": "true",
+            "AllowedPattern": "^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])[A-Za-z0-9!#$%&()*+,.:;<=>?\\[\\]^_`{|}~-]*$",
+            "MinLength": 8,
+            "MaxLength": 64
         },
         "IncomingQueueName": {
             "Description": "Name of incomning SQS queue",
             "Type": "String"
         },
         "AfStructureDatabase": {
-            "Description": "AF Structure Database",
+            "Description": "Name of Asset Framework Database to which Connector Agent will connect, for example \"NuGreen\". Required only if you adopted Asset Framework Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and Asset Framework Server.",
             "Type": "String"
         },
         "PiPointsTableName": {
@@ -81,7 +99,7 @@
             "Type": "String"
         },
         "EventsStatusTableName": {
-            "Description": "Table name for dynamodb database which holds state of point updates",
+            "Description": "Table name for DynamoDB database which holds state of point updates",
             "Type": "String"
         },
         "ManagementConsoleInstanceProfileARN": {
@@ -89,7 +107,12 @@
         },
         "QSDeploymentSuffix": {
             "Type": "String",
-            "Description": "Deployment suffix for making resouce names unique"
+            "Default": "qs",
+            "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
+            "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
+            "AllowedPattern": "[a-z0-9]+",
+            "MinLength": 1,
+            "MaxLength": 7
         },
         "CuratedDatasetsBucketName": {
             "Type": "String"
@@ -107,18 +130,18 @@
         }
     },
     "Mappings": {
-        "RegionMap": {
-            "us-east-1": {
-                "AMI": "ami-c58c1dd3"
+        "AWSAMIRegionMap": {
+            "AMI": {
+                "AMZNLINUXHVM": "amzn-ami-hvm-2017.09.0.20170930-x86_64-gp2"
             },
-            "us-east-2": {
-                "AMI": "ami-4191b524"
+            "us-east-1": {
+                "AMZNLINUXHVM": "ami-c58c1dd3"
             },
             "us-west-2": {
-                "AMI": "ami-4836a428"
+                "AMZNLINUXHVM": "ami-4836a428"
             },
             "eu-west-1": {
-                "AMI": "ami-acd005d5"
+                "AMZNLINUXHVM": "ami-acd005d5"
             }
         }
     },
@@ -179,7 +202,7 @@
         "WebAppLaunchConfiguration": {
             "Type": "AWS::AutoScaling::LaunchConfiguration",
             "Metadata": {
-                "Comment": "Install Web App Server",
+                "Comment": "Install Management Console Server",
                 "AWS::CloudFormation::Init": {
                     "config": {
                         "packages": {
@@ -256,7 +279,7 @@
                                             "unzip assets.zip",
                                             "rm assets.zip",
                                             "# Install dependencies and build webapp",
-                                            "cd /home/ec2-user/assets/webapp_management_console/new_app",
+                                            "cd /home/ec2-user/assets/webapp_management_console/app",
                                             "npm install",
                                             "npm run build",
                                             "# Install Python requirements",
@@ -295,11 +318,11 @@
                 },
                 "ImageId": {
                     "Fn::FindInMap": [
-                        "RegionMap",
+                        "AWSAMIRegionMap",
                         {
                             "Ref": "AWS::Region"
                         },
-                        "AMI"
+                        "AMZNLINUXHVM"
                     ]
                 },
                 "SecurityGroups": [
@@ -335,7 +358,7 @@
                 "VpcId": {
                     "Ref": "VpcId"
                 },
-                "GroupDescription": "Enable access via port 4000 for WebApp and via port 22 from Bastion",
+                "GroupDescription": "Enable access via port 4000 for Management Console and via port 22 from Bastion",
                 "SecurityGroupIngress": [
                     {
                         "IpProtocol": "tcp",
@@ -403,14 +426,14 @@
         }
     },
     "Outputs": {
-        "WebAppEndpoint": {
+        "ManagementConsoleEndpoint": {
             "Value": {
                 "Fn::GetAtt": [
                     "ElasticLoadBalancer",
                     "CanonicalHostedZoneName"
                 ]
             },
-            "Description": "Web application Elastic Load Balancer URL"
+            "Description": "Management Console URL"
         }
     }
 }

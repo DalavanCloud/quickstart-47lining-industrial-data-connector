@@ -7,9 +7,9 @@
             "Type": "String"
         },
         "MaxIndexAge": {
-            "Description": "Maximum age of index with managed feeds data (in days) before it will be deleted",
             "Type": "Number",
-            "Default": 7
+            "Default": 7,
+            "Description": "Number of days after which Managed Feeds are removed from Elasticsearch. Managed Feeds are kept in Elasticsearch up to number of days specified. Data is permanently stored in S3."
         },
         "ElasticsearchEndpoint": {
             "Type": "String",

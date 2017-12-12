@@ -6,6 +6,7 @@ from freezegun import freeze_time
 
 from tests.fixtures import *
 
+
 @freeze_time('2016-01-02 12:00:00')
 def test_get_recent_events(managed_feeds_manager, events_status_table):
     events_status_table.put_item(
@@ -133,18 +134,6 @@ def test_list_pi_points(managed_feeds_manager, pi_points_dynamo_table):
         {'pi_point': 'point1', 'subscription_status': 'pending'},
         {'pi_point': 'point2', 'subscription_status': 'subscribed'},
         {'pi_point': 'point3'}
-    ]
-
-
-def test_list_managed_feeds(managed_feeds_manager, pi_points_dynamo_table):
-    pi_points_dynamo_table.put_item(Item={'pi_point': 'point1', 'subscription_status': 'pending'})
-    pi_points_dynamo_table.put_item(Item={'pi_point': 'point2', 'subscription_status': 'subscribed'})
-    pi_points_dynamo_table.put_item(Item={'pi_point': 'point3'})
-
-    points = managed_feeds_manager.get_managed_feeds()
-
-    assert points == [
-        {'pi_point': 'point2', 'subscription_status': 'subscribed'}
     ]
 
 

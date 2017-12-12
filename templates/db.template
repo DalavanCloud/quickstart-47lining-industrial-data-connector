@@ -1,6 +1,6 @@
 {
     "AWSTemplateFormatVersion": "2010-09-09",
-    "Description": "**WARNING** This template creates an Amazon DynamoDb tables. You will be billed for the AWS resources used if you create a stack from this template.",
+    "Description": "**WARNING** This template creates an Amazon DynamoDB tables. You will be billed for the AWS resources used if you create a stack from this template.",
     "Parameters": {
         "ReadCapacity": {
             "Description": "Read capacity of the tables",
@@ -19,11 +19,11 @@
             "ConstraintDescription": "Must be between 1 and 10000"
         },
         "PiPointsTableName": {
-            "Description": "Table name for dynamodb database which holds subscriptions of managed feeds",
+            "Description": "Table name for DynamoDB database which holds subscriptions of managed feeds",
             "Type": "String"
         },
         "EventsStatusTableName": {
-            "Description": "Table name for dynamodb database which holds state of point updates",
+            "Description": "Table name for DynamoDB database which holds state of point updates",
             "Type": "String"
         }
     },

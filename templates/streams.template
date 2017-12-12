@@ -3,15 +3,27 @@
     "Description": "**WARNING** This template creates an Amazon Kinesis Streams, Kinesis Firehose and Kinesis Analytics applications. You will be billed for the AWS resources used if you create a stack from this template.",
     "Parameters": {
         "QSS3BucketName": {
-            "Description": "S3 bucket name for the repository. Repository bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
-            "Type": "String"
+            "ConstraintDescription": "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
+            "Description": "S3 bucket where the templates and scripts are installed. Use this parameter to specify the S3 bucket name you've created for your copy of Quick Start assets, if you decide to customize or extend the Quick Start for your own use. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens, but should not start or end with a hyphen.",
+            "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
+            "Type": "String",
+            "Default": "quickstart-reference"
         },
         "QSS3KeyPrefix": {
-            "Description": "S3 key prefix for the repository. Repository key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with forward slash (/) because they are automatically appended.",
-            "Type": "String"
+            "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
+            "ConstraintDescription": "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
+            "Description": "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
+            "Type": "String",
+            "Default": "osisoft/47lining/latest/"
         },
         "QSDeploymentSuffix": {
-            "Type": "String"
+            "Type": "String",
+            "Default": "qs",
+            "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
+            "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
+            "AllowedPattern": "[a-z0-9]+",
+            "MinLength": 1,
+            "MaxLength": 7
         },
         "ElasticsearchEndpoint": {
             "Type": "String"
@@ -28,13 +40,10 @@
         "KinesisAnalyticsLambdaRoleARN": {
             "Type": "String"
         },
-        "FirehoseDataBucketName": {
-            "Type": "String"
-        },
         "RegionalLambdaBucketName": {
             "Type": "String"
         },
-        "ElasticsearchStreamDataBucketARN": {
+        "CuratedDatasetsBucketARN": {
             "Type": "String"
         },
         "ElasticsearchBucketRoleARN": {
@@ -45,17 +54,25 @@
         },
         "RegisterKibanaDashboardRoleARN": {
             "Type": "String"
+        },
+        "KinesisStreamsShardsCount": {
+            "Type": "Number",
+            "Description": "The number of Kinesis Streams shards to provision for PI Data Kinesis Stream. For guidance, see the Amazon Kinesis Streams documentation.",
+            "Default": 2,
+            "MinValue": 1
         }
     },
     "Resources": {
-        "InputStream": {
+        "PIInputStream": {
             "Type": "AWS::Kinesis::Stream",
             "Properties": {
                 "RetentionPeriodHours": 24,
-                "ShardCount": 2
+                "ShardCount": {
+                    "Ref": "KinesisStreamsShardsCount"
+                }
             }
         },
-        "ElasticsearchOutputStream": {
+        "PIElasticsearchOutputStream": {
             "Type": "AWS::KinesisFirehose::DeliveryStream",
             "Properties": {
                 "ElasticsearchDestinationConfiguration": {
@@ -78,14 +95,14 @@
                     "S3BackupMode": "AllDocuments",
                     "S3Configuration": {
                         "BucketARN": {
-                            "Ref": "ElasticsearchStreamDataBucketARN"
+                            "Ref": "CuratedDatasetsBucketARN"
                         },
                         "BufferingHints": {
                             "IntervalInSeconds": "60",
                             "SizeInMBs": "50"
                         },
                         "CompressionFormat": "UNCOMPRESSED",
-                        "Prefix": "data/",
+                        "Prefix": "elasticsearch-managed-feeds/data/",
                         "RoleARN": {
                             "Ref": "ElasticsearchBucketRoleARN"
                         }
@@ -93,7 +110,7 @@
                 }
             }
         },
-        "UpdatesPerSecondOutputStream": {
+        "PIUpdatesPerSecondOutputStream": {
             "Type": "AWS::KinesisFirehose::DeliveryStream",
             "Properties": {
                 "ElasticsearchDestinationConfiguration": {
@@ -116,14 +133,14 @@
                     "S3BackupMode": "AllDocuments",
                     "S3Configuration": {
                         "BucketARN": {
-                            "Ref": "ElasticsearchStreamDataBucketARN"
+                            "Ref": "CuratedDatasetsBucketARN"
                         },
                         "BufferingHints": {
                             "IntervalInSeconds": "60",
                             "SizeInMBs": "50"
                         },
                         "CompressionFormat": "UNCOMPRESSED",
-                        "Prefix": "updates_per_second/",
+                        "Prefix": "elasticsearch-managed-feeds/updates_per_second/",
                         "RoleARN": {
                             "Ref": "ElasticsearchBucketRoleARN"
                         }
@@ -131,7 +148,7 @@
                 }
             }
         },
-        "UpdatesPerManagedFeedOutputStream": {
+        "PIUpdatesPerManagedFeedOutputStream": {
             "Type": "AWS::KinesisFirehose::DeliveryStream",
             "Properties": {
                 "ElasticsearchDestinationConfiguration": {
@@ -154,14 +171,14 @@
                     "S3BackupMode": "AllDocuments",
                     "S3Configuration": {
                         "BucketARN": {
-                            "Ref": "ElasticsearchStreamDataBucketARN"
+                            "Ref": "CuratedDatasetsBucketARN"
                         },
                         "BufferingHints": {
                             "IntervalInSeconds": "60",
                             "SizeInMBs": "50"
                         },
                         "CompressionFormat": "UNCOMPRESSED",
-                        "Prefix": "updates_per_managed_feed/",
+                        "Prefix": "elasticsearch-managed-feeds/updates_per_managed_feed/",
                         "RoleARN": {
                             "Ref": "ElasticsearchBucketRoleARN"
                         }
@@ -169,20 +186,12 @@
                 }
             }
         },
-        "S3OutputStream": {
+        "PIS3OutputStream": {
             "Type": "AWS::KinesisFirehose::DeliveryStream",
             "Properties": {
                 "S3DestinationConfiguration": {
                     "BucketARN": {
-                        "Fn::Join": [
-                            "",
-                            [
-                                "arn:aws:s3:::",
-                                {
-                                    "Ref": "FirehoseDataBucketName"
-                                }
-                            ]
-                        ]
+                        "Ref": "CuratedDatasetsBucketARN"
                     },
                     "BufferingHints": {
                         "IntervalInSeconds": 60,
@@ -210,7 +219,7 @@
                     "Variables": {
                         "INPUT_STREAM_ARN": {
                             "Fn::GetAtt": [
-                                "InputStream",
+                                "PIInputStream",
                                 "Arn"
                             ]
                         },
@@ -231,7 +240,7 @@
                                             [
                                                 "deliverystream/",
                                                 {
-                                                    "Ref": "ElasticsearchOutputStream"
+                                                    "Ref": "PIElasticsearchOutputStream"
                                                 }
                                             ]
                                         ]
@@ -256,7 +265,7 @@
                                             [
                                                 "deliverystream/",
                                                 {
-                                                    "Ref": "S3OutputStream"
+                                                    "Ref": "PIS3OutputStream"
                                                 }
                                             ]
                                         ]
@@ -281,7 +290,7 @@
                                             [
                                                 "deliverystream/",
                                                 {
-                                                    "Ref": "UpdatesPerSecondOutputStream"
+                                                    "Ref": "PIUpdatesPerSecondOutputStream"
                                                 }
                                             ]
                                         ]
@@ -306,7 +315,7 @@
                                             [
                                                 "deliverystream/",
                                                 {
-                                                    "Ref": "UpdatesPerManagedFeedOutputStream"
+                                                    "Ref": "PIUpdatesPerManagedFeedOutputStream"
                                                 }
                                             ]
                                         ]
@@ -387,8 +396,9 @@
     "Outputs": {
         "KinesisStreamName": {
             "Value": {
-                "Ref": "InputStream"
-            }
+                "Ref": "PIInputStream"
+            },
+            "Description": "Kinesis PI Points data stream name"
         }
     }
 }

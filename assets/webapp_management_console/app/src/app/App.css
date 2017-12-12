@@ -1,0 +1,11 @@
+.App {
+  text-align: center;
+}
+
+.react-bs-table table td, .react-bs-table table th {
+    overflow: hidden;
+    white-space: normal !important;
+    -o-text-overflow: ellipsis;
+    text-overflow: ellipsis;
+    overflow-wrap: break-word;
+}

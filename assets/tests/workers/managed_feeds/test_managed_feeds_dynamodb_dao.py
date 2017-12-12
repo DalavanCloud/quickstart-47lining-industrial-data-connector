@@ -24,17 +24,6 @@ def test_update_pi_points_status(managed_feeds_dynamo_dao, pi_points_dynamo_tabl
     ]
 
 
-@freeze_time('2016-10-01 11:00:04')
-def test_list_managed_feeds(managed_feeds_dynamo_dao, pi_points_dynamo_table):
-    pi_points_dynamo_table.put_item(Item={'pi_point': 'pi_point1', 'subscription_status': 'subscribed'})
-    pi_points_dynamo_table.put_item(Item={'pi_point': 'pi_point2', 'subscription_status': 'pending'})
-    pi_points_dynamo_table.put_item(Item={'pi_point': 'pi_point2'})
-
-    points = managed_feeds_dynamo_dao.list_managed_feeds()
-
-    assert points == [{'pi_point': 'pi_point1', 'subscription_status': 'subscribed'}]
-
-
 def test_get_latest_af_structure(managed_feeds_dynamo_dao, events_status_table, s3_resource):
     events_status_table.put_item(
         Item={

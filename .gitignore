@@ -1,0 +1,8 @@
+*.egg-info
+.idea
+venv/
+*.pyc
+*.egg
+*.egg-info/
+cache/
+*package-lock.json
