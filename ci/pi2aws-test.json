@@ -1,7 +1,7 @@
 [
   {
       "ParameterKey": "QSDeploymentSuffix",
-      "ParameterValue": "d"
+      "ParameterValue": "taskcat"
   },
   {
       "ParameterKey": "RemoteAccessCIDR",
@@ -65,7 +65,7 @@
   },
   {
       "ParameterKey": "QSS3ConnectorBucketName",
-      "ParameterValue": "pi2aws-connector-repository"
+      "ParameterValue": "47lining-osisoft-temporary-connector-release-us-east-1"
   },
   {
       "ParameterKey": "QSS3ConnectorKeyPrefix",

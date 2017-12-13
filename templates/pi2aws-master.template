@@ -537,7 +537,8 @@
         },
         "VPNFQDN": {
             "Description": "Fully qualified domain name (FQDN) of the forest domain for VPN and OSISoft system e.g. \"osisoft-example.com\". Required only if Authentication Method is set to \"WIS\".",
-            "Type": "String"
+            "Type": "String",
+            "Default": ""
         },
         "AuthType": {
             "Type": "String",
