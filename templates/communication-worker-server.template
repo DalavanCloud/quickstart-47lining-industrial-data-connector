@@ -91,16 +91,16 @@
     "Mappings": {
         "AWSAMIRegionMap": {
             "AMI": {
-                "AMZNLINUXHVM": "amzn-ami-hvm-2017.03.0.20170417-x86_64-gp2"
-            },
-            "us-east-1": {
-                "AMZNLINUXHVM": "ami-c58c1dd3"
-            },
-            "us-west-2": {
-                "AMZNLINUXHVM": "ami-4836a428"
+                "AMZNLINUXHVM": "amzn-ami-hvm-2017.09.1.20171120-x86_64-gp2"
             },
             "eu-west-1": {
-                "AMZNLINUXHVM": "ami-01ccc867"
+                "AMZNLINUXHVM": "ami-1a962263"
+            },
+            "us-east-1": {
+                "AMZNLINUXHVM": "ami-55ef662f"
+            },
+            "us-west-2": {
+                "AMZNLINUXHVM": "ami-bf4193c7"
             }
         }
     },
@@ -213,16 +213,18 @@
                                             "serverurl=unix:///tmp/supervisor.sock",
                                             "",
                                             "[program:pi-worker]",
-                                            { "Fn::Sub": ["command=python3.4 /home/ec2-user/assets/workers/pi_worker.py --pi_points_table_name ${PiPointsTableName} --events_status_table_name ${EventsStatusTable} --outgoing_sqs_name ${OutgoingSQSName} --region ${AWS::Region}",
-                                                {
-                                                  "OutgoingSQSName": {
-                                                      "Fn::GetAtt": [
-                                                            "PIOutgoingQueue",
-                                                            "QueueName"
-                                                      ]
-                                                  }
-                                                }
-                                            ]
+                                            {
+                                                "Fn::Sub": [
+                                                    "command=python3.4 /home/ec2-user/assets/workers/pi_worker.py --pi_points_table_name ${PiPointsTableName} --events_status_table_name ${EventsStatusTable} --outgoing_sqs_name ${OutgoingSQSName} --region ${AWS::Region}",
+                                                    {
+                                                        "OutgoingSQSName": {
+                                                            "Fn::GetAtt": [
+                                                                "PIOutgoingQueue",
+                                                                "QueueName"
+                                                            ]
+                                                        }
+                                                    }
+                                                ]
                                             },
                                             "process_name=pi-worker-%(process_num)s",
                                             "autostart=true",
@@ -308,7 +310,9 @@
                         "IpProtocol": "tcp",
                         "FromPort": "22",
                         "ToPort": "22",
-                        "CidrIp": { "Ref" : "VPCCIDR" }
+                        "CidrIp": {
+                            "Ref": "VPCCIDR"
+                        }
                     }
                 ]
             }

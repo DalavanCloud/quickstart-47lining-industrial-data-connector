@@ -79,7 +79,7 @@
             "Type": "String"
         },
         "ApplicationPassword": {
-             "Description": "Password for Management Console User. Password must contain 8 to 64 printable ASCII characters excluding: /, \", ', \\ and @. It must contain 1 uppercase letter, 1 lowercase letter, and 1 number.",
+            "Description": "Password for Management Console User. Password must contain 8 to 64 printable ASCII characters excluding: /, \", ', \\ and @. It must contain 1 uppercase letter, 1 lowercase letter, and 1 number.",
             "Type": "String",
             "NoEcho": "true",
             "AllowedPattern": "^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])[A-Za-z0-9!#$%&()*+,.:;<=>?\\[\\]^_`{|}~-]*$",
@@ -132,16 +132,16 @@
     "Mappings": {
         "AWSAMIRegionMap": {
             "AMI": {
-                "AMZNLINUXHVM": "amzn-ami-hvm-2017.09.0.20170930-x86_64-gp2"
-            },
-            "us-east-1": {
-                "AMZNLINUXHVM": "ami-c58c1dd3"
-            },
-            "us-west-2": {
-                "AMZNLINUXHVM": "ami-4836a428"
+                "AMZNLINUXHVM": "amzn-ami-hvm-2017.09.1.20171120-x86_64-gp2"
             },
             "eu-west-1": {
-                "AMZNLINUXHVM": "ami-acd005d5"
+                "AMZNLINUXHVM": "ami-1a962263"
+            },
+            "us-east-1": {
+                "AMZNLINUXHVM": "ami-55ef662f"
+            },
+            "us-west-2": {
+                "AMZNLINUXHVM": "ami-bf4193c7"
             }
         }
     },
