@@ -1,0 +1,404 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "**WARNING** This template creates an Amazon Kinesis Streams, Kinesis Firehose and Kinesis Analytics applications. You will be billed for the AWS resources used if you create a stack from this template.",
+    "Parameters": {
+        "QSS3BucketName": {
+            "ConstraintDescription": "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
+            "Description": "S3 bucket where the templates and scripts are installed. Use this parameter to specify the S3 bucket name you've created for your copy of Quick Start assets, if you decide to customize or extend the Quick Start for your own use. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens, but should not start or end with a hyphen.",
+            "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
+            "Type": "String",
+            "Default": "quickstart-reference"
+        },
+        "QSS3KeyPrefix": {
+            "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
+            "ConstraintDescription": "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
+            "Description": "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
+            "Type": "String",
+            "Default": "osisoft/47lining/latest/"
+        },
+        "QSDeploymentSuffix": {
+            "Type": "String",
+            "Default": "qs",
+            "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
+            "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
+            "AllowedPattern": "[a-z0-9]+",
+            "MinLength": 1,
+            "MaxLength": 7
+        },
+        "ElasticsearchEndpoint": {
+            "Type": "String"
+        },
+        "ElasticsearchDomainARN" : {
+            "Type": "String"
+        },
+        "ElasticsearchAccessRoleARN" : {
+            "Type" : "String"
+        },
+        "StreamsAccessRoleARN": {
+            "Type": "String"
+        },
+        "KinesisAnalyticsLambdaRoleARN": {
+            "Type": "String"
+        },
+        "RegionalLambdaBucketName": {
+            "Type": "String"
+        },
+        "CuratedDatasetsBucketARN": {
+            "Type": "String"
+        },
+        "ElasticsearchBucketRoleARN": {
+            "Type": "String"
+        },
+        "ManagedFeedsBucketRoleARN": {
+            "Type": "String"
+        },
+        "RegisterKibanaDashboardRoleARN": {
+            "Type": "String"
+        },
+        "KinesisStreamsShardsCount": {
+            "Type": "Number",
+            "Description": "The number of Kinesis Streams shards to provision for PI Data Kinesis Stream. For guidance, see the Amazon Kinesis Streams documentation.",
+            "Default": 2,
+            "MinValue": 1
+        }
+    },
+    "Resources": {
+        "PIInputStream": {
+            "Type": "AWS::Kinesis::Stream",
+            "Properties": {
+                "RetentionPeriodHours": 24,
+                "ShardCount": {
+                    "Ref": "KinesisStreamsShardsCount"
+                }
+            }
+        },
+        "PIElasticsearchOutputStream": {
+            "Type": "AWS::KinesisFirehose::DeliveryStream",
+            "Properties": {
+                "ElasticsearchDestinationConfiguration": {
+                    "BufferingHints": {
+                        "IntervalInSeconds": 60,
+                        "SizeInMBs": 50
+                    },
+                    "DomainARN": {
+                        "Ref": "ElasticsearchDomainARN"
+                    },
+                    "IndexName": "managed_feeds",
+                    "IndexRotationPeriod": "OneDay",
+                    "TypeName": "ManagedFeedStream",
+                    "RetryOptions": {
+                        "DurationInSeconds": "60"
+                    },
+                    "RoleARN": {
+                        "Ref": "ElasticsearchAccessRoleARN"
+                    },
+                    "S3BackupMode": "AllDocuments",
+                    "S3Configuration": {
+                        "BucketARN": {
+                            "Ref": "CuratedDatasetsBucketARN"
+                        },
+                        "BufferingHints": {
+                            "IntervalInSeconds": "60",
+                            "SizeInMBs": "50"
+                        },
+                        "CompressionFormat": "UNCOMPRESSED",
+                        "Prefix": "elasticsearch-managed-feeds/data/",
+                        "RoleARN": {
+                            "Ref": "ElasticsearchBucketRoleARN"
+                        }
+                    }
+                }
+            }
+        },
+        "PIUpdatesPerSecondOutputStream": {
+            "Type": "AWS::KinesisFirehose::DeliveryStream",
+            "Properties": {
+                "ElasticsearchDestinationConfiguration": {
+                    "BufferingHints": {
+                        "IntervalInSeconds": 60,
+                        "SizeInMBs": 50
+                    },
+                    "DomainARN": {
+                        "Ref": "ElasticsearchDomainARN"
+                    },
+                    "IndexName": "updates_per_second",
+                    "IndexRotationPeriod": "NoRotation",
+                    "TypeName": "UpdatesPerSecond",
+                    "RetryOptions": {
+                        "DurationInSeconds": "60"
+                    },
+                    "RoleARN": {
+                        "Ref": "ElasticsearchAccessRoleARN"
+                    },
+                    "S3BackupMode": "AllDocuments",
+                    "S3Configuration": {
+                        "BucketARN": {
+                            "Ref": "CuratedDatasetsBucketARN"
+                        },
+                        "BufferingHints": {
+                            "IntervalInSeconds": "60",
+                            "SizeInMBs": "50"
+                        },
+                        "CompressionFormat": "UNCOMPRESSED",
+                        "Prefix": "elasticsearch-managed-feeds/updates_per_second/",
+                        "RoleARN": {
+                            "Ref": "ElasticsearchBucketRoleARN"
+                        }
+                    }
+                }
+            }
+        },
+        "PIUpdatesPerManagedFeedOutputStream": {
+            "Type": "AWS::KinesisFirehose::DeliveryStream",
+            "Properties": {
+                "ElasticsearchDestinationConfiguration": {
+                    "BufferingHints": {
+                        "IntervalInSeconds": 60,
+                        "SizeInMBs": 50
+                    },
+                    "DomainARN": {
+                        "Ref": "ElasticsearchDomainARN"
+                    },
+                    "IndexName": "updates_per_managed_feed",
+                    "IndexRotationPeriod": "NoRotation",
+                    "TypeName": "UpdatesPerManagedFeed",
+                    "RetryOptions": {
+                        "DurationInSeconds": "60"
+                    },
+                    "RoleARN": {
+                        "Ref": "ElasticsearchAccessRoleARN"
+                    },
+                    "S3BackupMode": "AllDocuments",
+                    "S3Configuration": {
+                        "BucketARN": {
+                            "Ref": "CuratedDatasetsBucketARN"
+                        },
+                        "BufferingHints": {
+                            "IntervalInSeconds": "60",
+                            "SizeInMBs": "50"
+                        },
+                        "CompressionFormat": "UNCOMPRESSED",
+                        "Prefix": "elasticsearch-managed-feeds/updates_per_managed_feed/",
+                        "RoleARN": {
+                            "Ref": "ElasticsearchBucketRoleARN"
+                        }
+                    }
+                }
+            }
+        },
+        "PIS3OutputStream": {
+            "Type": "AWS::KinesisFirehose::DeliveryStream",
+            "Properties": {
+                "S3DestinationConfiguration": {
+                    "BucketARN": {
+                        "Ref": "CuratedDatasetsBucketARN"
+                    },
+                    "BufferingHints": {
+                        "IntervalInSeconds": 60,
+                        "SizeInMBs": 60
+                    },
+                    "CompressionFormat": "UNCOMPRESSED",
+                    "Prefix": "data/",
+                    "RoleARN": {
+                        "Ref": "ManagedFeedsBucketRoleARN"
+                    }
+                }
+            }
+        },
+        "KinesisAnalyticsLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "RegionalLambdaBucketName"
+                    },
+                    "S3Key": "lambda_deployment_package.zip"
+                },
+                "Description": "Create Kinesis Analytics applications",
+                "Environment": {
+                    "Variables": {
+                        "INPUT_STREAM_ARN": {
+                            "Fn::GetAtt": [
+                                "PIInputStream",
+                                "Arn"
+                            ]
+                        },
+                        "OUTPUT_ES_STREAM_ARN": {
+                            "Fn::Join": [
+                                ":",
+                                [
+                                    "arn:aws:firehose",
+                                    {
+                                        "Ref": "AWS::Region"
+                                    },
+                                    {
+                                        "Ref": "AWS::AccountId"
+                                    },
+                                    {
+                                        "Fn::Join": [
+                                            "",
+                                            [
+                                                "deliverystream/",
+                                                {
+                                                    "Ref": "PIElasticsearchOutputStream"
+                                                }
+                                            ]
+                                        ]
+                                    }
+                                ]
+                            ]
+                        },
+                        "OUTPUT_S3_STREAM_ARN": {
+                            "Fn::Join": [
+                                ":",
+                                [
+                                    "arn:aws:firehose",
+                                    {
+                                        "Ref": "AWS::Region"
+                                    },
+                                    {
+                                        "Ref": "AWS::AccountId"
+                                    },
+                                    {
+                                        "Fn::Join": [
+                                            "",
+                                            [
+                                                "deliverystream/",
+                                                {
+                                                    "Ref": "PIS3OutputStream"
+                                                }
+                                            ]
+                                        ]
+                                    }
+                                ]
+                            ]
+                        },
+                        "OUTPUT_UPDATES_PER_SECOND_STREAM_ARN": {
+                            "Fn::Join": [
+                                ":",
+                                [
+                                    "arn:aws:firehose",
+                                    {
+                                        "Ref": "AWS::Region"
+                                    },
+                                    {
+                                        "Ref": "AWS::AccountId"
+                                    },
+                                    {
+                                        "Fn::Join": [
+                                            "",
+                                            [
+                                                "deliverystream/",
+                                                {
+                                                    "Ref": "PIUpdatesPerSecondOutputStream"
+                                                }
+                                            ]
+                                        ]
+                                    }
+                                ]
+                            ]
+                        },
+                        "OUTPUT_UPDATES_PER_MANAGED_FEED_ARN": {
+                            "Fn::Join": [
+                                ":",
+                                [
+                                    "arn:aws:firehose",
+                                    {
+                                        "Ref": "AWS::Region"
+                                    },
+                                    {
+                                        "Ref": "AWS::AccountId"
+                                    },
+                                    {
+                                        "Fn::Join": [
+                                            "",
+                                            [
+                                                "deliverystream/",
+                                                {
+                                                    "Ref": "PIUpdatesPerManagedFeedOutputStream"
+                                                }
+                                            ]
+                                        ]
+                                    }
+                                ]
+                            ]
+                        },
+                        "ROLE_ARN": {
+                            "Ref": "StreamsAccessRoleARN"
+                        },
+                        "DEPLOYMENT_SUFFIX": {
+                            "Ref": "QSDeploymentSuffix"
+                        }
+                    }
+                },
+                "Handler": "lambdas.create_kinesis_app_lambda.lambda_handler",
+                "Role": {
+                    "Ref": "KinesisAnalyticsLambdaRoleARN"
+                },
+                "Runtime": "python3.6",
+                "Timeout": 30
+            }
+        },
+        "CreateKinesisAnalytics": {
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "KinesisAnalyticsLambda",
+                        "Arn"
+                    ]
+                }
+            },
+            "Type": "Custom::CreateKinesisAnalytics"
+        },
+        "RegisterKibanaDashboardLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "RegionalLambdaBucketName"
+                    },
+                    "S3Key": "lambda_deployment_package.zip"
+                },
+                "Description": "Register dashboard in Kibana",
+                "Environment": {
+                    "Variables": {
+                        "ELASTICSEARCH_ENDPOINT": {
+                            "Ref": "ElasticsearchEndpoint"
+                        },
+                        "QSS3_BUCKET_NAME": {
+                            "Ref": "QSS3BucketName"
+                        },
+                        "QSS3_KEY_PREFIX": {
+                            "Ref": "QSS3KeyPrefix"
+                        }
+                    }
+                },
+                "Handler": "lambdas.setup_elasticsearch_and_kibana.lambda_handler",
+                "Role": {
+                    "Ref": "RegisterKibanaDashboardRoleARN"
+                },
+                "Runtime": "python3.6",
+                "Timeout": 30
+            }
+        },
+        "RegisterKibanaDashboard": {
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "RegisterKibanaDashboardLambda",
+                        "Arn"
+                    ]
+                }
+            },
+            "Type": "Custom::RegisterDashboard"
+        }
+    },
+    "Outputs": {
+        "KinesisStreamName": {
+            "Value": {
+                "Ref": "PIInputStream"
+            },
+            "Description": "Kinesis PI Points data stream name"
+        }
+    }
+}
