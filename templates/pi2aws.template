@@ -1,12 +1,13 @@
 {
     "AWSTemplateFormatVersion": "2010-09-09",
-    "Description": "Deploy OSIsoft to AWS Connector Quick Start into existing VPC. **WARNING** You will be billed for the AWS resources used if you create a stack from this template.",
+    "Description": "Deploy OSIsoft PI System to AWS Connector Quick Start into existing VPC. **WARNING** You will be billed for the AWS resources used if you create a stack from this template.",
     "Mappings": {
         "Constants": {
             "Buckets": {
                 "CuratedDatasetsNamePrefix": "datalake-curated-datasets-pi2aws",
                 "PublishedDataNamePrefix": "datalake-published-data-pi2aws",
-                "AthenaResultBucketNamePrefix": "athena-pi2aws-query-results"
+                "AthenaResultBucketNamePrefix": "athena-pi2aws-query-results",
+                "LicencedBinaryDestinationKeyPrefix": "licenced/"
             },
             "TableNames": {
                 "EventsStatusTableNamePrefix": "EventsStatus",
@@ -45,6 +46,17 @@
                 },
                 {
                     "Label": {
+                        "default": "Licensed 3rd-party Software Installers Configuration"
+                    },
+                    "Parameters": [
+                        "LicensedSoftwareS3BucketName",
+                        "LicensedSoftwareS3KeyPrefix",
+                        "ConnectorAgentAssetsS3BucketName",
+                        "ConnectorAgentAssetsS3KeyPrefix"
+                    ]
+                },
+                {
+                    "Label": {
                         "default": "OSIsoft Authentication Configuration"
                     },
                     "Parameters": [
@@ -53,20 +65,18 @@
                 },
                 {
                     "Label": {
-                        "default": "Windows Integrated Security Specific Authentication Configuration"
+                        "default": "Authentication Configuration for WIS"
                     },
                     "Parameters": [
-                        "VPNAddress",
-                        "VPNUser",
-                        "VPNPassword",
-                        "VPNFQDN",
+                        "WISFQDN",
                         "WISUser",
-                        "WISPassword"
+                        "WISPassword",
+                        "DomainControllerServerIP"
                     ]
                 },
                 {
                     "Label": {
-                        "default": "Explicit user and password Specific Authentication Configuration"
+                        "default": "Authentication Configuration for Explicit User and Password"
                     },
                     "Parameters": [
                         "PIUser",
@@ -100,8 +110,6 @@
                         "default": "Connector Agent Configuration"
                     },
                     "Parameters": [
-                        "QSS3ConnectorBucketName",
-                        "QSS3ConnectorKeyPrefix",
                         "ConnectorInstanceType",
                         "LogGroupNamePrefix",
                         "MetricNamespaceNamePrefix"
@@ -150,6 +158,18 @@
                 }
             ],
             "ParameterLabels": {
+                "LicensedSoftwareS3BucketName": {
+                    "default": "Licensed Software S3 Bucket Name"
+                },
+                "LicensedSoftwareS3KeyPrefix": {
+                    "default": "Licensed Software S3 Key Prefix"
+                },
+                "ConnectorAgentAssetsS3BucketName": {
+                    "default": "Connector Agent Assets S3 Bucket Name"
+                },
+                "ConnectorAgentAssetsS3KeyPrefix": {
+                    "default": "Connector Agent Assets S3 Key Prefix"
+                },
                 "QSDeploymentSuffix": {
                     "default": "Quick Start Deployment Suffix"
                 },
@@ -161,9 +181,6 @@
                 },
                 "RemoteAccessCIDR": {
                     "default": "Remote Access CIDR"
-                },
-                "AvailabilityZones": {
-                    "default": "Availability Zones"
                 },
                 "KeyName": {
                     "default": "Key Name"
@@ -200,12 +217,6 @@
                 },
                 "ConnectorInstanceType": {
                     "default": "Connector Agent Instance Type"
-                },
-                "QSS3ConnectorBucketName": {
-                    "default": "Connector Agent Binaries Bucket Name"
-                },
-                "QSS3ConnectorKeyPrefix": {
-                    "default": "Connector Agent Binaries Key Prefix"
                 },
                 "LogGroupNamePrefix": {
                     "default": "Log Group Name Prefix"
@@ -252,23 +263,20 @@
                 "AuthType": {
                     "default": "Authentication Method"
                 },
-                "VPNAddress": {
-                    "default": "VPN Server Address"
-                },
-                "VPNUser": {
-                    "default": "VPN User Name"
-                },
-                "VPNPassword": {
-                    "default": "VPN Password"
-                },
-                "VPNFQDN": {
-                    "default": "VPN Domain Name"
+                "WISFQDN": {
+                    "default": "WIS Domain Name"
                 },
                 "WISUser": {
-                    "default": "VPN Domain User Name"
+                    "default": "WIS Domain User Name"
                 },
                 "WISPassword": {
-                    "default": "VPN Domain User Password"
+                    "default": "WIS Domain User Password"
+                },
+                "DomainControllerServerIP": {
+                    "default": "Domain Controller Server IP"
+                },
+                "KinesisStreamsShardsCount": {
+                    "default": "Kinesis Streams Shards Count"
                 },
                 "PrivateSubnet1ID": {
                     "default": "Existing VPC Private Subnet 1 ID"
@@ -288,8 +296,8 @@
                 "VPCCIDR": {
                     "default": "Existing VPC CIDR"
                 },
-                "KinesisStreamsShardsCount": {
-                    "default": "Kinesis Streams Shards Count"
+                "AvailabilityZones": {
+                    "default": "Availability Zones"
                 }
             }
         }
@@ -297,7 +305,7 @@
     "Parameters": {
         "QSS3BucketName": {
             "ConstraintDescription": "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
-            "Description": "S3 bucket where the templates and scripts are installed. Use this parameter to specify the S3 bucket name you've created for your copy of Quick Start assets, if you decide to customize or extend the Quick Start for your own use. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens, but should not start or end with a hyphen.",
+            "Description": "S3 bucket where the Quick Start templates and scripts are installed. Use this parameter to specify the S3 bucket name you've created for your copy of Quick Start assets, if you decide to customize or extend the Quick Start for your own use. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens, but should not start or end with a hyphen.",
             "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
             "Type": "String",
             "Default": "quickstart-reference"
@@ -305,284 +313,28 @@
         "QSS3KeyPrefix": {
             "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
             "ConstraintDescription": "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
-            "Description": "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
+            "Description": "The S3 key name prefix used to simulate a folder for your copy of Quick Start assets, if you decide to customize or extend the Quick Start for your own use. This prefix can include numbers, lowercase letters, uppercase letters, hyphens, and forward slashes.",
             "Type": "String",
             "Default": "osisoft/latest/"
-        },
-        "RemoteAccessCIDR": {
-            "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/([0-9]|[1-2][0-9]|3[0-2]))$",
-            "ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/x",
-            "Description": "The CIDR IP range that is permitted to SSH into the bastion host instance and access Amazon ES. We recommend that you set this value to a trusted IP range. For example, you might want to grant only your corporate network access to the software. You can use http://checkip.amazonaws.com/ to check your IP address. This parameter must be in the form x.x.x.x/x (e.g., 96.127.8.12/32, YOUR_IP/32).",
-            "Type": "String"
-        },
-        "InstanceType": {
-            "Description": "Management Console EC2 instance type",
-            "Type": "String",
-            "Default": "t2.micro",
-            "AllowedValues": [
-                "t2.nano",
-                "t2.micro",
-                "t2.small",
-                "t2.medium",
-                "t2.large",
-                "m4.large",
-                "m4.xlarge",
-                "m4.2xlarge",
-                "m5.large",
-                "m5.xlarge",
-                "m5.2xlarge"
-            ],
-            "ConstraintDescription": "must be a valid EC2 instance type."
-        },
-        "ConnectorInstanceType": {
-            "Description": "Connector Agent EC2 instance type.",
-            "Type": "String",
-            "Default": "m5.xlarge",
-            "AllowedValues": [
-                "t2.nano",
-                "t2.micro",
-                "t2.small",
-                "t2.medium",
-                "t2.large",
-                "m4.large",
-                "m4.xlarge",
-                "m4.2xlarge",
-                "m4.4xlarge",
-                "m4.10xlarge",
-                "m5.large",
-                "m5.xlarge",
-                "m5.2xlarge",
-                "m5.4xlarge",
-                "m5.12xlarge",
-                "c5.large",
-                "c5.xlarge",
-                "c5.2xlarge",
-                "c5.4xlarge"
-            ],
-            "ConstraintDescription": "must be a valid EC2 instance type."
-        },
-        "WorkerInstanceType": {
-            "Description": "Communication worker EC2 instance type. Communication worker processes messages coming from Connector Agent.",
-            "Type": "String",
-            "Default": "t2.micro",
-            "AllowedValues": [
-                "t2.micro",
-                "t2.small",
-                "t2.medium",
-                "t2.large",
-                "m4.large",
-                "m4.xlarge",
-                "m4.2xlarge",
-                "m5.large",
-                "m5.xlarge",
-                "m5.2xlarge",
-                "c4.large",
-                "c4.xlarge",
-                "c4.2xlarge",
-                "c4.4xlarge",
-                "c4.8xlarge"
-            ],
-            "ConstraintDescription": "must be a valid EC2 instance type."
-        },
-        "KeyName": {
-            "Description": "Name of an existing EC2 KeyPair to enable SSH access to the instance",
-            "Type": "AWS::EC2::KeyPair::KeyName",
-            "ConstraintDescription": "Can contain only ASCII characters."
-        },
-        "AvailabilityZones": {
-            "Description": "The list of Availability Zones to use for the subnets in the VPC. You must specify two Availability Zones. By default, the Quick Start preserves the logical order you specify.",
-            "Type": "List<AWS::EC2::AvailabilityZone::Name>"
-        },
-        "ApplicationUser": {
-            "AllowedPattern": "^[\\x00-\\x7F]*$",
-            "ConstraintDescription": "User name must contain 1 to 64 ASCII characters.",
-            "Default": "ConsoleAdmin",
-            "Description": "The user name for the Management Console. Consisting of 1-64 ASCII characters.",
-            "MaxLength": "64",
-            "MinLength": "1",
-            "Type": "String"
-        },
-        "ApplicationPassword": {
-            "Description": "Password for Management Console User. Password must contain 8 to 64 printable ASCII characters excluding: /, \", ', \\ and @. It must contain 1 uppercase letter, 1 lowercase letter, and 1 number.",
-            "Type": "String",
-            "NoEcho": "true",
-            "AllowedPattern": "^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])[A-Za-z0-9!#$%&()*+,.:;<=>?\\[\\]^_`{|}~-]*$",
-            "MinLength": 8,
-            "MaxLength": 64
-        },
-        "ReadCapacity": {
-            "Description": "Read capacity of each table.",
-            "Type": "Number",
-            "Default": 1,
-            "MinValue": 1,
-            "MaxValue": 10000,
-            "ConstraintDescription": "Must be between 1 and 10000"
-        },
-        "WriteCapacity": {
-            "Description": "Write capacity of each table.",
-            "Type": "Number",
-            "Default": 1,
-            "MinValue": 1,
-            "MaxValue": 10000,
-            "ConstraintDescription": "Must be between 1 and 10000"
-        },
-        "ElasticsearchNodeType": {
-            "Description": "The node type to be provisioned for the Elasticsearch cluster.",
-            "Type": "String",
-            "Default": "t2.small.elasticsearch",
-            "AllowedValues": [
-                "t2.small.elasticsearch",
-                "m4.large.elasticsearch",
-                "m4.xlarge.elasticsearch",
-                "c4.large.elasticsearch",
-                "c4.xlarge.elasticsearch",
-                "r4.large.elasticsearch",
-                "r4.xlarge.elasticsearch"
-            ],
-            "ConstraintDescription": "must be a valid Elasticsearch node type."
-        },
-        "ElasticsearchNodeCount": {
-            "Description": "The number of nodes in the Elasticsearch cluster.",
-            "Type": "Number",
-            "Default": "1"
-        },
-        "AfStructureDatabase": {
-            "Description": "Name of Asset Framework Database to which Connector Agent will connect, for example \"NuGreen\". Required only if you adopted Asset Framework Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and Asset Framework Server.",
-            "Type": "String"
-        },
-        "LogGroupNamePrefix": {
-            "Description": "Name of CloudWatch log group for metric filters",
-            "Type": "String",
-            "Default": "ConnectorLogGroup"
-        },
-        "MetricNamespaceNamePrefix": {
-            "Description": "Namespace name for the metric filters",
-            "Type": "String",
-            "Default": "ConnectorMetricNamespace"
-        },
-        "PIServerIP": {
-            "Description": "Host (IP) of the PI Data Archive Server.",
-            "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$",
-            "Type": "String"
-        },
-        "PIPort": {
-            "Description": "Port on which PI Data Archive runs.",
-            "Type": "Number",
-            "Default": 5450
-        },
-        "AFServerIP": {
-            "Description": "Host (IP) of the PI Asset Framework Server. Required only if you adopted Asset Framework Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and Asset Framework Server.",
-            "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$",
-            "Type": "String"
-        },
-        "AFPort": {
-            "Description": "Port on which PI AF Server runs. Required only if you adopted Asset Framework Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and Asset Framework Server.",
-            "Type": "Number",
-            "Default": 5457
-        },
-        "AFUser": {
-            "Description": "Name of the user with privileges to access PI Asset Framework Server. Required only if Authentication Method is set to \"Explicit user and password\" and if you adopted Asset Framework Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and Asset Framework Server.",
-            "Type": "String"
-        },
-        "AFPassword": {
-            "Description": "Password of the user with privileges to access PI Asset Framework Server. Required only if Authentication Method is set to \"Explicit user and password\" and if you adopted Asset Framework Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and Asset Framework Server.",
-            "NoEcho": "true",
-            "Type": "String"
-        },
-        "AFDomainName": {
-            "Description": "Domain name of the user that runs AF Server. Required only if Authentication Method is set to \"Explicit user and password\" and if you adopted Asset Framework Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and Asset Framework Server.",
-            "Type": "String"
-        },
-        "PIUser": {
-            "Type": "String",
-            "Description": "Name of the PI Data Archive user. Required only if Authentication Method is set to \"Explicit user and password\"."
-        },
-        "PIPassword": {
-            "Description": "Password for the PI Data Archive user. Required only if Authentication Method is set to \"Explicit user and password\".",
-            "Type": "String",
-            "NoEcho": "true"
-        },
-        "QSS3ConnectorKeyPrefix": {
-            "Type": "String",
-            "Description": "The S3 key name prefix used to simulate a folder for your Connector Agent binary, if you decide to customize or extend the Connector Agent for your own use. This prefix can include numbers, lowercase letters, uppercase letters, hyphens, and forward slashes.",
-            "Default": "osisoft/47lining/v1/",
-            "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
-            "ConstraintDescription": "Connector Agent key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start with forward slash (/) because it is automatically appended."
-        },
-        "QSS3ConnectorBucketName": {
-            "Type": "String",
-            "Description": "Name of your S3 bucket with your Connector Agent binary. You can build your own binary or use pre-built binary of Connector Agent.",
-            "Default": "pi2aws-repository",
-            "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
-            "ConstraintDescription": "Bucket name and key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start with forward slash (/) because it is automatically appended."
         },
         "QSDeploymentSuffix": {
             "Type": "String",
             "Default": "qs",
             "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
-            "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
+            "Description": "You can deploy this Quick Start multiple times in the same AWS Region if you provide a different suffix with each launch. This suffix is added to resource names to make them unique for each deployment. Use this parameter to support the deployment of production and test environments in the same AWS Region and in the same AWS account. The suffix is a 1-7 character string that contains numbers and lowercase letters.",
             "AllowedPattern": "[a-z0-9]+",
             "MinLength": 1,
             "MaxLength": 7
         },
-        "MaxIndexAge": {
-            "Type": "Number",
-            "Default": 7,
-            "Description": "Number of days after which Managed Feeds are removed from Elasticsearch. Managed Feeds are kept in Elasticsearch up to number of days specified. Data is permanently stored in S3."
+        "RemoteAccessCIDR": {
+            "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/([0-9]|[1-2][0-9]|3[0-2]))$",
+            "ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/x",
+            "Description": "The CIDR IP range that is permitted to access the OSIsoft PI System to AWS Connector software. We recommend that you set this value to a trusted IP range. For example, you might want to grant only your corporate network access to the software. You can use http://checkip.amazonaws.com/ to check your IP address. This parameter must be in the form x.x.x.x/x (e.g., 96.127.8.12/32, YOUR_IP/32).",
+            "Type": "String"
         },
-        "EnableS3LifecycleRules": {
-            "Description": "Enable S3 lifecycle rules",
-            "Type": "String",
-            "AllowedValues": ["yes", "no"],
-            "Default": "yes"
-        },
-        "IATransitionPeriodInDays": {
-            "Description": "Number of days after which data is transitioned to IA.",
-            "Type": "Number",
-            "Default": 90
-        },
-        "GlacierTransitionPeriodInDays": {
-            "Description": "Number of days after which data is transitioned to Glacier.",
-            "Type": "Number",
-            "Default": 365
-        },
-        "VPNAddress": {
-            "Type": "String",
-            "Description": "Address of existing VPN server that provides network access between your AWS resources and PI Data Archive. Required only if Authentication Method is set to \"WIS\".",
-            "Default": ""
-        },
-        "VPNUser": {
-            "Type": "String",
-            "Description": "Username for the existing VPN user. Required only if Authentication Method is set to \"WIS\".",
-            "Default": ""
-        },
-        "VPNPassword": {
-            "Type": "String",
-            "Description": "Password for the existing VPN user. Required only if Authentication Method is set to \"WIS\".",
-            "NoEcho": "true",
-            "Default": ""
-        },
-        "VPNFQDN": {
-            "Description": "Fully qualified domain name (FQDN) of the forest domain for VPN and OSIsoft system e.g. \"osisoft-example.com\". Required only if Authentication Method is set to \"WIS\".",
-            "Type": "String",
-            "Default": ""
-        },
-        "AuthType": {
-            "Type": "String",
-            "AllowedValues": ["WIS", "Explicit user and password"],
-            "Default": "WIS",
-            "Description": "The authentication method to use between Connector Agent and OSIsoft system. Two authentication methods are supported: Windows Integrated Security (WIS) and Explicit user and password authentication. If you are using Active Directory with your OSIsoft system and already have VPN established then you can use WIS authentication method for Connector Agent. If you don't use WIS, then you can specify Explicit user and password authentication."
-        },
-        "WISUser": {
-            "Type": "String",
-            "Default": "",
-            "Description": "The name of user in Active Directory in your Windows network with privileges to access PI Data Archive and Asset Framework Server. Required only if Authentication Method is set to \"WIS\"."
-        },
-        "WISPassword": {
-            "Type": "String",
-            "NoEcho": "true",
-            "Default": "",
-            "Description": "The password of user in Active Directory in your Windows network with privileges to access PI Data Archive and Asset Framework Server. Required only if Authentication Method is set to \"WIS\"."
+        "AvailabilityZones": {
+            "Description": "The list of Availability Zones to use for the subnets in the VPC. You must specify two Availability Zones. By default, the Quick Start preserves the logical order you specify.",
+            "Type": "List<AWS::EC2::AvailabilityZone::Name>"
         },
         "VPCCIDR": {
             "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
@@ -610,11 +362,270 @@
             "Description": "ID of the public subnet 2 in Availability Zone 2 (e.g., subnet-a0246dcd)",
             "Type": "AWS::EC2::Subnet::Id"
         },
+        "KeyName": {
+            "Description": "Public/private key pair, which allows you to connect securely to your instance after it launches. When you created an AWS account, this is the key pair you created in your preferred region.",
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "ConstraintDescription": "Can contain only ASCII characters."
+        },
+        "LicensedSoftwareS3BucketName": {
+            "ConstraintDescription": "S3 bucket bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
+            "Description": "S3 bucket where the Microsoft and OSIsoft licensed software (.NET Framework, PI AF Client SDK) are installed. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens, but should not start or end with a hyphen.",
+            "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
+            "Type": "String"
+        },
+        "LicensedSoftwareS3KeyPrefix": {
+            "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
+            "ConstraintDescription": "The S3 key name prefix for required licensed software. This prefix can include numbers, lowercase letters, uppercase letters, hyphens, and forward slashes.",
+            "Description": "The S3 key name prefix for required licensed software. This prefix can include numbers, lowercase letters, uppercase letters, hyphens, and forward slashes.",
+            "Type": "String"
+        },
+        "ConnectorAgentAssetsS3BucketName": {
+            "ConstraintDescription": "S3 bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
+            "Description": "S3 bucket where Connector Agent sources are installed. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens, but should not start or end with a hyphen.",
+            "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
+            "Type": "String",
+            "Default": "aws-quickstart-datasets"
+        },
+        "ConnectorAgentAssetsS3KeyPrefix": {
+            "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
+            "Description": "The S3 key name prefix to where Connector Agent sources are installed. This prefix can include numbers, lowercase letters, uppercase letters, hyphens, and forward slashes.",
+            "ConstraintDescription": "The S3 key name prefix to where Connector Agent sources are installed. This prefix can include numbers, lowercase letters, uppercase letters, hyphens, and forward slashes.",
+            "Type": "String",
+            "Default": "osisoft/agent/v1/"
+        },
+        "AuthType": {
+            "Type": "String",
+            "AllowedValues": ["WIS", "Explicit user and password"],
+            "Default": "WIS",
+            "Description": "The authentication method to use between the Connector and the OSIsoft PI System. Two authentication methods are supported: Windows Integrated Security (WIS) and explicit user and password authentication. If you are using Active Directory with your OSIsoft PI System and already have VPN established, you can use the WIS authentication method. If you don't use WIS, you can specify Explicit user and password. Depending on your choice, enter values for the parameters in one of the next two categories."
+        },
+        "WISFQDN": {
+            "Description": "Fully qualified domain name (FQDN) of the forest domain for the OSIsoft system e.g. \"osisoft-example.com\". Required only if Authentication Method is set to \"WIS\".",
+            "Type": "String",
+            "Default": ""
+        },
+        "WISUser": {
+            "Type": "String",
+            "Default": "",
+            "Description": "The user name (in Active Directory in your Windows network) for the user who has privileges to access PI Data Archive and AF Server. Required only if Authentication Method is set to \"WIS\"."
+        },
+        "WISPassword": {
+            "Type": "String",
+            "NoEcho": "true",
+            "Default": "",
+            "Description": "The password (in Active Directory in your Windows network) for the user who has privileges to access PI Data Archive and AF Server. Required only if Authentication Method is set to \"WIS\"."
+        },
+        "DomainControllerServerIP": {
+            "Description": "Host (IP) of the AD Domain Controller server. Required only if Authentication Method is set to \"WIS\".",
+            "AllowedPattern": "^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))?$",
+            "Type": "String"
+        },
+        "PIUser": {
+            "Type": "String",
+            "Description": "Name of the PI Data Archive user. Required only if Authentication Method is set to \"Explicit user and password\"."
+        },
+        "PIPassword": {
+            "Description": "Password for the PI Data Archive user. Required only if Authentication Method is set to \"Explicit user and password\".",
+            "Type": "String",
+            "NoEcho": "true"
+        },
+        "AFDomainName": {
+            "Description": "Domain name of the user who runs AF Server. This parameter is required only if you set Authentication Method to Explicit user and password and you adopted AF Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and AF Server.",
+            "Type": "String"
+        },
+        "AFUser": {
+            "Description": "Name of the user who has privileges to access PI Asset Framework Server. This parameter is required only if you set Authentication Method to Explicit user and password and you adopted AF Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and AF Server.",
+            "Type": "String"
+        },
+        "AFPassword": {
+            "Description": "Password of the user who has privileges to access AF Server. This parameter is required only if Authentication Method is set to Explicit user and password and you adopted AF Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and AF Server.",
+            "NoEcho": "true",
+            "Type": "String"
+        },
+        "PIServerIP": {
+            "Description": "Host (IP) of the PI Data Archive server.",
+            "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$",
+            "ConstraintDescription": "PI Server IP must be a valid IP address.",
+            "Type": "String"
+        },
+        "PIPort": {
+            "Description": "Port on which PI Data Archive runs.",
+            "Type": "Number",
+            "ConstraintDescription": "PI Server port must be a valid number.",
+            "Default": 5450
+        },
+        "AFServerIP": {
+            "Description": "Host (IP) of the PI AF server. This parameter is required only if you adopted AF Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and AF Server.",
+            "AllowedPattern": "^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))?$",
+            "Type": "String"
+        },
+        "AFPort": {
+            "Description": "Port on which PI AF server runs. This parameter is required only if you adopted AF Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and AF Server.",
+            "Type": "Number",
+            "Default": 5457
+        },
+        "AfStructureDatabase": {
+            "Description": "Name of the AF database that Connector Agent will connect to; for example, NuGreen. This parameter is required only if you adopted AF Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and AF Server.",
+            "Type": "String"
+        },
+        "ConnectorInstanceType": {
+            "Description": "EC2 instance type for the Connector Agent instance.",
+            "Type": "String",
+            "Default": "m4.xlarge",
+            "AllowedValues": [
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m4.4xlarge",
+                "m4.10xlarge",
+                "m5.large",
+                "m5.xlarge",
+                "m5.2xlarge",
+                "m5.4xlarge",
+                "m5.12xlarge",
+                "c5.large",
+                "c5.xlarge",
+                "c5.2xlarge",
+                "c5.4xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },
+        "LogGroupNamePrefix": {
+            "Description": "Name of the Amazon CloudWatch log group for metric filters.",
+            "Type": "String",
+            "Default": "ConnectorLogGroup"
+        },
+        "MetricNamespaceNamePrefix": {
+            "Description": "Namespace name for the metric filters.",
+            "Type": "String",
+            "Default": "ConnectorMetricNamespace"
+        },
+        "InstanceType": {
+            "Description": "EC2 instance type for the Management Console.",
+            "Type": "String",
+            "Default": "t2.micro",
+            "AllowedValues": [
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m5.large",
+                "m5.xlarge",
+                "m5.2xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },
+        "ApplicationUser": {
+            "AllowedPattern": "^[\\x00-\\x7F]*$",
+            "ConstraintDescription": "User name must contain 1 to 64 ASCII characters.",
+            "Default": "ConsoleAdmin",
+            "Description": "The user name for the Management Console, consisting of 1-64 ASCII characters.",
+            "MaxLength": "64",
+            "MinLength": "1",
+            "Type": "String"
+        },
+        "ApplicationPassword": {
+            "Description": "User password for the Management Console. The password must contain 8 to 64 printable ASCII characters, excluding: /, \", ', \\ and @, and must contain 1 uppercase letter, 1 lowercase letter, and 1 number.",
+            "Type": "String",
+            "NoEcho": "true",
+            "AllowedPattern": "^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])[A-Za-z0-9!#$%&()*+,.:;<=>?\\[\\]^_`{|}~-]*$",
+            "MinLength": 8,
+            "MaxLength": 64
+        },
+        "WorkerInstanceType": {
+            "Description": "EC2 instance type for the Communication Worker host. The Communication Worker processes messages coming from Connector Agent.",
+            "Type": "String",
+            "Default": "t2.micro",
+            "AllowedValues": [
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m5.large",
+                "m5.xlarge",
+                "m5.2xlarge",
+                "c4.large",
+                "c4.xlarge",
+                "c4.2xlarge",
+                "c4.4xlarge",
+                "c4.8xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },
+        "ReadCapacity": {
+            "Description": "Read capacity of each DynamoDB table (1-10000). For more information, see the Amazon DynamoDB documentation.",
+            "Type": "Number",
+            "Default": 1,
+            "MinValue": 1,
+            "MaxValue": 10000,
+            "ConstraintDescription": "Must be between 1 and 10000"
+        },
+        "WriteCapacity": {
+            "Description": "Write capacity of each DynamoDB table (1-10000). For more information, see the Amazon DynamoDB documentation.",
+            "Type": "Number",
+            "Default": 1,
+            "MinValue": 1,
+            "MaxValue": 10000,
+            "ConstraintDescription": "Must be between 1 and 10000"
+        },
         "KinesisStreamsShardsCount": {
             "Type": "Number",
-            "Description": "The number of Kinesis Streams shards to provision for PI Data Kinesis Stream. For guidance, see the Amazon Kinesis Streams documentation.",
+            "Description": "The number of Kinesis Data Streams shards to provision for the PI Data stream. For guidance, see the Amazon Kinesis Data Streams documentation.",
             "Default": 2,
             "MinValue": 1
+        },
+        "MaxIndexAge": {
+            "Type": "Number",
+            "Default": 7,
+            "Description": "The number of days after which managed feeds are removed from Amazon ES. Data is permanently stored in Amazon S3."
+        },
+        "ElasticsearchNodeCount": {
+            "Description": "The number of nodes in the Elasticsearch cluster.",
+            "Type": "Number",
+            "Default": "1"
+        },
+        "ElasticsearchNodeType": {
+            "Description": "The node type to be provisioned for the Elasticsearch cluster.",
+            "Type": "String",
+            "Default": "t2.small.elasticsearch",
+            "AllowedValues": [
+                "t2.small.elasticsearch",
+                "m4.large.elasticsearch",
+                "m4.xlarge.elasticsearch",
+                "c4.large.elasticsearch",
+                "c4.xlarge.elasticsearch",
+                "r4.large.elasticsearch",
+                "r4.xlarge.elasticsearch"
+            ],
+            "ConstraintDescription": "must be a valid Elasticsearch node type."
+        },
+        "EnableS3LifecycleRules": {
+            "Description": "Set to no if you want to disable Amazon S3 lifecycle rules. For more information, see the Amazon S3 documentation.",
+            "Type": "String",
+            "AllowedValues": ["yes", "no"],
+            "Default": "yes"
+        },
+        "IATransitionPeriodInDays": {
+            "Description": "Number of days after which data is transitioned to infrequent access (IA) in Amazon S3. For more information, see the Amazon S3 documentation.",
+            "Type": "Number",
+            "Default": 90
+        },
+        "GlacierTransitionPeriodInDays": {
+            "Description": "Number of days after which data is transitioned to Amazon Glacier.",
+            "Type": "Number",
+            "Default": 365
         }
     },
     "Resources": {
@@ -897,6 +908,48 @@
                 }
             }
         },
+        "CopyLicencedBinaryLambdaStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Sub": "https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/copy-licenced-binary-lambda.template"
+                },
+                "Parameters": {
+                    "ConnectorAgentAssetsS3BucketName": {
+                        "Ref": "ConnectorAgentAssetsS3BucketName"
+                    },
+                    "ConnectorAgentAssetsS3KeyPrefix": {
+                        "Ref": "ConnectorAgentAssetsS3KeyPrefix"
+                    },
+                    "LicensedSoftwareS3BucketName": {
+                        "Ref": "LicensedSoftwareS3BucketName"
+                    },
+                    "LicensedSoftwareS3KeyPrefix": {
+                        "Ref": "LicensedSoftwareS3KeyPrefix"
+                    },
+                    "RegionalLambdaBucketName": {
+                        "Fn::GetAtt": [
+                            "BucketsStack",
+                            "Outputs.RegionalLambdaBucketName"
+                        ]
+                    },
+                    "LicencedBinaryDestinationKeyPrefix": {
+                        "Fn::FindInMap": [
+                            "Constants",
+                            "Buckets",
+                            "LicencedBinaryDestinationKeyPrefix"
+                        ]
+                    },
+                    "CopyLicencedBinaryLambdaRoleARN": {
+                        "Fn::GetAtt": [
+                            "IAMStack",
+                            "Outputs.CopyLicencedBinaryLambdaRoleARN"
+                        ]
+                    }
+                }
+            },
+            "DependsOn": ["CopyLambdaDeploymentStack"]
+        },
         "ElasticsearchCleanLambdaStack": {
             "DependsOn": [
                 "CopyLambdaDeploymentStack"
@@ -1100,6 +1153,13 @@
                     "Fn::Sub": "https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/connector.template"
                 },
                 "Parameters": {
+                    "LicensedSoftwareS3KeyPrefix": {
+                        "Fn::FindInMap": [
+                            "Constants",
+                            "Buckets",
+                            "LicencedBinaryDestinationKeyPrefix"
+                        ]
+                    },
                     "KeyName": {
                         "Ref": "KeyName"
                     },
@@ -1114,12 +1174,6 @@
                     },
                     "PublicSubnet2ID": {
                         "Ref": "PublicSubnet2ID"
-                    },
-                    "QSS3ConnectorKeyPrefix": {
-                        "Ref": "QSS3ConnectorKeyPrefix"
-                    },
-                    "QSS3ConnectorBucketName": {
-                        "Ref": "QSS3ConnectorBucketName"
                     },
                     "PIServerIP": {
                         "Ref": "PIServerIP"
@@ -1231,17 +1285,8 @@
                             "Outputs.CuratedDatasetsBucketName"
                         ]
                     },
-                    "VPNAddress": {
-                        "Ref": "VPNAddress"
-                    },
-                    "VPNUser": {
-                        "Ref": "VPNUser"
-                    },
-                    "VPNPassword": {
-                        "Ref": "VPNPassword"
-                    },
-                    "VPNFQDN": {
-                        "Ref": "VPNFQDN"
+                    "WISFQDN": {
+                        "Ref": "WISFQDN"
                     },
                     "WISUser": {
                         "Ref": "WISUser"
@@ -1251,10 +1296,13 @@
                     },
                     "AuthType": {
                         "Ref": "AuthType"
+                    },
+                    "DomainControllerServerIP": {
+                        "Ref": "DomainControllerServerIP"
                     }
                 }
             },
-            "DependsOn": ["CopyLambdaDeploymentStack"]
+            "DependsOn": ["CopyLambdaDeploymentStack", "CopyLicencedBinaryLambdaStack"]
         },
         "IAMStack": {
             "Type": "AWS::CloudFormation::Stack",
@@ -1263,6 +1311,12 @@
                     "Fn::Sub": "https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/iam.template"
                 },
                 "Parameters": {
+                    "ConnectorAgentAssetsS3BucketName": {
+                        "Ref": "ConnectorAgentAssetsS3BucketName"
+                    },
+                    "LicensedSoftwareS3BucketName": {
+                        "Ref": "LicensedSoftwareS3BucketName"
+                    },
                     "RegionalLambdaBucketARN": {
                         "Fn::GetAtt": [
                             "BucketsStack",
@@ -1314,12 +1368,6 @@
                     },
                     "ConnectorLogGroupName": {
                         "Fn::Sub": "${LogGroupNamePrefix}-${QSDeploymentSuffix}"
-                    },
-                    "QSS3ConnectorBucketName": {
-                        "Ref": "QSS3ConnectorBucketName"
-                    },
-                    "QSS3ConnectorKeyPrefix": {
-                        "Ref": "QSS3ConnectorKeyPrefix"
                     }
                 }
             }

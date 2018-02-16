@@ -3,21 +3,14 @@
     "Description": "Lambdas for performing generic periodic actions. **WARNING** This template creates an Amazon Lambda. You will be billed for the AWS resources used if you create a stack from this template.",
     "Parameters": {
         "QSS3BucketName": {
-            "ConstraintDescription": "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
-            "Description": "S3 bucket where the templates and scripts are installed. Use this parameter to specify the S3 bucket name you've created for your copy of Quick Start assets, if you decide to customize or extend the Quick Start for your own use. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens, but should not start or end with a hyphen.",
-            "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
             "Type": "String",
             "Default": "quickstart-reference"
         },
         "QSS3KeyPrefix": {
-            "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
-            "ConstraintDescription": "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
-            "Description": "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
             "Type": "String",
             "Default": "osisoft/47lining/latest/"
         },
         "RegionalLambdaBucketName": {
-            "Description": "Regional S3 bucket where tha lambda code will be stored",
             "Type": "String"
         },
         "CopyLambdaDeploymentRoleARN": {

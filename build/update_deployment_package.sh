@@ -35,7 +35,7 @@ zip ${LAMBDA_ZIP_PATH} -r utils   -x '*__pycache__/*' '*.pyc' 'utils/piaf*'
 
 echo "Create assets archive"
 cd ${REPO_DIR}
-zip ${ASSETS_ZIP_NAME} -r assets/webapp_management_console -x '*__pycache__/*' '*.pyc' 'assets/webapp_management_console/new_app/build/*' 'assets/webapp_management_console/new_app/node_modules/*'
+zip ${ASSETS_ZIP_NAME} -r assets/webapp_management_console -x '*__pycache__/*' '*.pyc' 'assets/webapp_management_console/app/build/*' 'assets/webapp_management_console/app/node_modules/*'
 zip ${ASSETS_ZIP_NAME} -r assets/utils -x '*__pycache__/*' '*.pyc'
 zip ${ASSETS_ZIP_NAME} -r assets/workers -x '*__pycache__/*' '*.pyc'
 zip ${ASSETS_ZIP_NAME} -r assets/service -x '*__pycache__/*' '*.pyc'
