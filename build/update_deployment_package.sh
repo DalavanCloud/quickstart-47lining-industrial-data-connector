@@ -6,6 +6,8 @@ LAMBDA_ZIP_NAME=lambda_deployment_package.zip
 LAMBDA_ZIP_PATH=${REPO_DIR}/assets/lambdas/${LAMBDA_ZIP_NAME}
 ASSETS_ZIP_NAME=assets.zip
 ASSETS_ZIP_PATH=${REPO_DIR}/assets/assets.zip
+PIP_PACKAGES_DIR_NAME=pip-packages
+PIP_PACKAGES_DIR=${TMP_VENV_DIR}/${PIP_PACKAGES_DIR_NAME}
 
 # Release resources
 function finish {
@@ -16,13 +18,16 @@ trap finish EXIT
 
 
 echo "Prepare lambda deployment package"
+mkdir ${PIP_PACKAGES_DIR}
 cd ${TMP_VENV_DIR}
+
 virtualenv -p python3 venv
 (
     source venv/bin/activate
-    pip install -r ${REPO_DIR}/assets/lambdas/requirements.txt
+    pip install -t ${PIP_PACKAGES_DIR_NAME} -r ${REPO_DIR}/assets/lambdas/requirements.txt
 )
-cd venv/lib/python3.5/site-packages
+cd ${PIP_PACKAGES_DIR_NAME}
+ls -l
 zip ${LAMBDA_ZIP_NAME} -r ./* -x '*__pycache__/*' '*.pyc'
 mv ${LAMBDA_ZIP_NAME} ${LAMBDA_ZIP_PATH}
 
