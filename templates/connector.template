@@ -2,6 +2,9 @@
     "AWSTemplateFormatVersion": "2010-09-09",
     "Description": "This template creates a single 47lining PI2AWS Connector installation. **WARNING** This template creates Amazon EC2 Windows instance and related resources. You will be billed for the AWS resources used if you create a stack from this template. Also, you are solely responsible for complying with the license terms for the software downloaded and installed by this template. By creating a stack from this template, you are agreeing to such terms.",
     "Parameters": {
+        "LicensedSoftwareS3KeyPrefix": {
+            "Type": "String"
+        },
         "KeyName": {
             "Description": "Name of an existing EC2 KeyPair",
             "Type": "AWS::EC2::KeyPair::KeyName",
@@ -46,13 +49,6 @@
             "Description": "Connector subnet 2",
             "Type": "AWS::EC2::Subnet::Id"
         },
-        "QSS3ConnectorKeyPrefix": {
-            "Type": "String",
-            "Description": "The S3 key name prefix used to simulate a folder for your Connector Agent binary, if you decide to customize or extend the Connector Agent for your own use. This prefix can include numbers, lowercase letters, uppercase letters, hyphens, and forward slashes.",
-            "Default": "osisoft/47lining/v1/",
-            "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
-            "ConstraintDescription": "Connector Agent key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start with forward slash (/) because it is automatically appended."
-        },
         "PIServerIP": {
             "Description": "Host (IP) of the PI Data Archive Server.",
             "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$",
@@ -72,8 +68,7 @@
             "Type": "String"
         },
         "PIUser": {
-            "Type": "String",
-            "Description": "Name of the PI Data Archive user. Required only if Authentication Method is set to \"Explicit user and password\"."
+            "Type": "String"
         },
         "PIPassword": {
             "Description": "Password for the PI Data Archive user. Required only if Authentication Method is set to \"Explicit user and password\".",
@@ -87,7 +82,7 @@
         },
         "AFServerIP": {
             "Description": "Host (IP) of the PI Asset Framework Server. Required only if you adopted Asset Framework Server in your OSIsoft system. This Quick Start can independently connect to PI Data Archive and Asset Framework Server.",
-            "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$",
+            "AllowedPattern": "^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))?$",
             "Type": "String"
         },
         "AFPort": {
@@ -95,15 +90,13 @@
             "Type": "Number",
             "Default": 5457
         },
-        "LogGroupName": {
+        "DomainControllerServerIP": {
+            "Description": "Host (IP) of the AD Domain Controller server. Required only if you've selected WIS authentication method.",
+            "AllowedPattern": "^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))?$",
             "Type": "String"
         },
-        "QSS3ConnectorBucketName": {
-            "Type": "String",
-            "Description": "Name of your S3 bucket with your Connector Agent binary. You can build your own binary or use pre-built binary of Connector Agent.",
-            "Default": "pi2aws-repository",
-            "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
-            "ConstraintDescription": "Bucket name and key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start with forward slash (/) because it is automatically appended."
+        "LogGroupName": {
+            "Type": "String"
         },
         "OutgoingQueueUrl": {
             "Type": "String"
@@ -164,32 +157,16 @@
         "WISUser": {
             "Type": "String",
             "Default": "",
-            "Description": "The name of user in Active Directory in your Windows network with privileges to access PI Data Archive and Asset Framework Server. Required only if Authentication Method is set to \"WIS\"."
+            "Description": "The user name (in Active Directory in your Windows network) for the user who has privileges to access PI Data Archive and AF Server. Required only if Authentication Method is set to \"WIS\"."
         },
         "WISPassword": {
             "Type": "String",
             "NoEcho": "true",
             "Default": "",
-            "Description": "The password of user in Active Directory in your Windows network with privileges to access PI Data Archive and Asset Framework Server. Required only if Authentication Method is set to \"WIS\"."
+            "Description": "The password (in Active Directory in your Windows network) for the user who has privileges to access PI Data Archive and AF Server. Required only if Authentication Method is set to \"WIS\"."
         },
-        "VPNAddress": {
-            "Type": "String",
-            "Description": "Address of existing VPN server that provides network access between your AWS resources and PI Data Archive. Required only if Authentication Method is set to \"WIS\".",
-            "Default": ""
-        },
-        "VPNUser": {
-            "Type": "String",
-            "Description": "Username for the existing VPN user. Required only if Authentication Method is set to \"WIS\".",
-            "Default": ""
-        },
-        "VPNPassword": {
-            "Type": "String",
-            "Description": "Password for the existing VPN user. Required only if Authentication Method is set to \"WIS\".",
-            "NoEcho": "true",
-            "Default": ""
-        },
-        "VPNFQDN": {
-            "Description": "Fully qualified domain name (FQDN) of the forest domain for VPN and OSIsoft system e.g. \"osisoft-example.com\". Required only if Authentication Method is set to \"WIS\".",
+        "WISFQDN": {
+            "Description": "Fully qualified domain name (FQDN) of the forest domain for OSIsoft system e.g. \"osisoft-example.com\". Required only if Authentication Method is set to \"WIS\".",
             "Type": "String",
             "Default": ""
         }
@@ -227,7 +204,7 @@
                 "VpcId": {
                     "Ref": "VpcId"
                 },
-                "GroupDescription": "Enable HTTP and RDP",
+                "GroupDescription": "Enable RDP",
                 "SecurityGroupIngress": [
                     {
                         "IpProtocol": "tcp",
@@ -261,11 +238,7 @@
                                     "Fn::Join": [
                                         "\r\n",
                                         [
-                                            "$name = \"VPNConn\"",
-                                            { "Fn::Sub": "$address = \"${VPNAddress}\""},
-                                            { "Fn::Sub": "$username = \"${VPNUser}\""} ,
-                                            { "Fn::Sub": "$password = \"${VPNPassword}\""},
-                                            { "Fn::Sub": "$fqdn = \"${VPNFQDN}\""},
+                                            { "Fn::Sub": "$fqdn = \"${WISFQDN}\""},
                                             { "Fn::Sub": "$wisuser = \"${WISUser}\""},
                                             { "Fn::Sub": "$wispassword = \"${WISPassword}\""},
                                             "",
@@ -291,37 +264,21 @@
                                             "  $service.StartService()",
                                             "}",
                                             "",
-                                            "$vpn = Get-VpnConnection | where {$_.Name -eq $name}",
-                                            "",
-                                            "if($vpn.Name -ne $name)",
-                                            "{",
-                                            "    Add-VpnConnection -Name $name -ServerAddress $address -TunnelType PPTP -Force:$true -RememberCredential:$true -SplitTunneling:$true",
-                                            "}",
-                                            "",
-                                            "while($true)",
-                                            "{",
-                                            "    $vpn = Get-VpnConnection | where {$_.Name -eq $name}",
-                                            "    if ($vpn.ConnectionStatus -eq \"Disconnected\")",
-                                            "    {",
-                                            "        $cmd = $env:WINDIR + \"\\System32\\rasdial.exe\"",
-                                            "        $expression = \"$cmd $name $username $password /domain:$fqdn\"",
-                                            "        Invoke-Expression -Command $expression",
-                                            "        & Join-Domain $fqdn $username $password",
-                                            "        start-sleep -seconds 20",
-                                            "        $fulluser = \"$fqdn\\$wisuser\"",
-                                            "        Invoke-Expression -Command \"C:\\connector\\grantRights.ps1 $fulluser\"",
-                                            "        & Set-ServiceAcctCreds 'pi2aws-connector' $fulluser $wispassword.TrimEnd(\"`r?`n\")",
-                                            "    }",
-                                            "    start-sleep -seconds 10",
-                                            "}"
+                                            "$wmi = Get-WmiObject win32_networkadapterconfiguration -filter \"ipenabled = 'true'\"",
+                                            { "Fn::Sub": "$wmi.SetDNSServerSearchOrder(\"${DomainControllerServerIP}\")"},
+                                            "& Join-Domain $fqdn $wisuser $wispassword",
+                                            "start-sleep -seconds 20",
+                                            "$fulluser = \"$fqdn\\$wisuser\"",
+                                            "Invoke-Expression -Command \"C:\\connector\\grantRights.ps1 $fulluser\"",
+                                            "& Set-ServiceAcctCreds 'pi2aws-connector' $fulluser $wispassword.TrimEnd(\"`r?`n\")"
                                         ]
                                     ]
                                 }
                             },
-                            "c:\\AWSCLI64.msi": {
-                                "source": "https://s3.amazonaws.com/aws-cli/AWSCLI64.msi"
+                            "c:\\7zip.msi": {
+                                "source": "http://www.7-zip.org/a/7z1801-x64.msi"
                             },
-                            "c:\\AF-Install-Kit\\silent.ini": {
+                            "c:\\AF-Install-Kit\\af-silent.ini": {
                                 "content": {
                                     "Fn::Join": [
                                         "\n",
@@ -338,13 +295,13 @@
                                             "[NUMSETUPMODULES]",
                                             "NUM = 12",
                                             "[SETUPMODULES]",
-                                            "1 = dotnet460Setup",
+                                            "1 = dotnet462Setup",
                                             "2 = PreInstallTasks",
                                             "3 = MSVC9SP1x86Redistrib",
                                             "4 = MSVC9SP1x64Redistrib",
-                                            "5 = MSRuntimesVS2015u2_x86",
-                                            "6 = MSRuntimesVS2015u2_x64",
-                                            "7 = PINS ",
+                                            "5 = MSRuntimesVS2017_x86",
+                                            "6 = MSRuntimesVS2017_x64",
+                                            "7 = PINS",
                                             "8 = PIBufss.msi",
                                             "9 = PIBufss_x64.msi",
                                             "10 = AFClient_x86.msi",
@@ -548,36 +505,85 @@
                             }
                         },
                         "commands": {
-                            "1a-install-cli": {
-                                "command": "msiexec.exe /i \"c:\\AWSCLI64.msi\" /QN /L*E \"C:\\install-log.log\"",
-                                "waitAfterCompletion" : "0"
-                            },
-                            "1b-configure-cloudwatch": {
+                            "1a-configure-cloudwatch": {
                                 "command": "xcopy \"c:\\AWS.EC2.Windows.CloudWatch.json\" \"c:\\Program Files\\Amazon\\SSM\\Plugins\\awsCloudWatch\\\"",
                                 "waitAfterCompletion": "0"
                             },
-                            "2-fetch-af-install-kit": {
+                            "2a-domain-controller-entry": {
                                 "command": {
-                                    "Fn::Sub": "\"c:\\Program Files\\Amazon\\AWSCLI\\aws.exe\" s3 sync s3://${QSS3ConnectorBucketName}/${QSS3ConnectorKeyPrefix}af-client \"C:\\AF-Install-Kit\""
+                                    "Fn::Sub": "echo ${DomainControllerServerIP} ${WISFQDN} >> \"c:\\Windows\\System32\\Drivers\\etc\\hosts\""
                                 },
                                 "waitAfterCompletion": "0"
                             },
-                            "3-pi-hosts-entry": {
+                            "3a-install-dotnet-46": {
+                                "command": {
+                                    "Fn::Sub": "C:\\AF-Install-Kit\\NDP46.exe /q /wait /norestart /log c:\\install-log-dotnet.log"
+                                },
+                                "waitAfterCompletion": "0"
+                            },
+                            "3b-install-dotnet-targeting-46": {
+                                "command": {
+                                    "Fn::Sub": "C:\\AF-Install-Kit\\NDP46-TargetingPack.exe /q /wait /norestart /log c:\\install-log-dotnet-targeting.log"
+                                },
+                                "waitAfterCompletion": "0"
+                            },
+                            "3c-install-buildtools": {
+                                "command": {
+                                    "Fn::Sub": "\"C:\\AF-Install-Kit\\vs_buildtools.exe\" --quiet --wait --norestart"
+                                },
+                                "waitAfterCompletion": "0"
+                            },
+                            "3d-install-7zip": {
+                                "command": "msiexec.exe /i C:\\7zip.msi /Q /LOG \"C:\\install-log-7zip.log\"",
+                                "waitAfterCompletion": "0"
+                            },
+                            "4a-unpack-af-client": {
+                                "command": "\"C:\\Program Files\\7-Zip\\7z.exe\" e -y c:\\AF-Install-Kit\\PI-AF-Client.exe -oC:\\AF-Install-Kit\\PI-AF",
+                                "waitAfterCompletion": "0"
+                            },
+                            "4b-move-af-client": {
+                                "command": "powershell \"Get-ChildItem -Path C:\\AF-Install-Kit\\PI-AF -Recurse -File | Move-Item -Destination C:\\AF-Install-Kit\"",
+                                "waitAfterCompletion": "0"
+                            },
+                            "4c-install-af-client": {
+                                "command": "cd \"c:\\AF-Install-Kit\" && Setup.exe -f af-silent.ini",
+                                "waitAfterCompletion": "10"
+                            },
+                            "5a-unpack-connector": {
+                                "command": "\"C:\\Program Files\\7-Zip\\7z.exe\" x -y c:\\AF-Install-Kit\\connector-agent.zip -oC:\\connector-source",
+                                "waitAfterCompletion": "0"
+                            },
+                            "5b-build-connector": {
+                                "command": {
+                                    "Fn::Sub": "powershell -f C:\\connector-source\\assets\\build-osisoft-connector.ps1 -ConnectorSourcePath C:\\connector-source -InstallDir C:\\connector"
+                                },
+                                "waitAfterCompletion": "0"
+                            },
+                            "5c-copy-connector-dll": {
+                                "command": "xcopy /Y C:\\connector-build-tmp\\connector-build\\*.dll C:\\connector\\",
+                                "waitAfterCompletion": "0"
+                            },
+                            "5d-copy-connector-pdb": {
+                                "command": "xcopy /Y C:\\connector-build-tmp\\connector-build\\*.pdb C:\\connector\\",
+                                "waitAfterCompletion": "0"
+                            },
+                            "5e-move-grantrights-ps1-files": {
+                                "command": "xcopy C:\\connector-source\\assets\\grantRights.ps1 C:\\connector",
+                                "waitAfterCompletion": "0"
+                            },
+                            "6a-pi-hosts-entry": {
                                 "command": {
                                     "Fn::Sub": "echo ${PIServerIP} PIHostName >> \"c:\\Windows\\System32\\Drivers\\etc\\hosts\""
                                 },
                                 "waitAfterCompletion": "0"
                             },
-                            "4-af-hosts-entry": {
+                            "6b-af-hosts-entry": {
                                 "command": {
                                     "Fn::Sub": "echo ${AFServerIP} AFHostName >> \"c:\\Windows\\System32\\Drivers\\etc\\hosts\""
                                 },
                                 "waitAfterCompletion": "0"
                             },
-                            "5-install-af-client": {
-                                "command": "cd \"c:\\AF-Install-Kit\" && Setup.exe -f silent.ini"
-                            },
-                            "6-open-ports": {
+                            "8-open-ports": {
                                 "command": {
                                     "Fn::Join": [
                                         " && ",
@@ -593,36 +599,29 @@
                                             },
                                             {
                                                 "Fn::Sub": "netsh advfirewall firewall add rule name=\"Open Port AF Server ${AFPort} IN \" dir=in action=allow protocol=TCP localport=${AFPort}"
-                                            },
-                                            "netsh advfirewall firewall add rule name=\"Open Port VPN 1723 IN \" dir=in action=allow protocol=TCP localport=1723",
-                                            "netsh advfirewall firewall set rule group=\"network discovery\" new enable=yes"
+                                            }
                                         ]
                                     ]
                                 },
                                 "waitAfterCompletion": "0"
                             },
-                            "7-download-connector": {
-                                "command": {
-                                    "Fn::Sub": "\"c:\\Program Files\\Amazon\\AWSCLI\\aws.exe\" s3 sync s3://${QSS3ConnectorBucketName}/${QSS3ConnectorKeyPrefix}connector \"C:\\connector\""
-                                },
+                            "9a-move-nssm": {
+                                "command": "xcopy /Y C:\\connector-source\\assets\\nssm.exe c:\\connector\\",
                                 "waitAfterCompletion": "0"
                             },
-                            "8a-download-and-config-nssm": {
+                            "9b-config-nssm": {
                                 "command": {
                                     "Fn::Join": [
                                         " && ",
                                         [
-                                            {
-                                                "Fn::Sub": "\"c:\\Program Files\\Amazon\\AWSCLI\\aws.exe\" s3 sync s3://${QSS3ConnectorBucketName}/${QSS3ConnectorKeyPrefix}nssm \"C:\\nssm\""
-                                            },
-                                            "\"C:\\nssm\\win64\\nssm.exe\" install pi2aws-connector \"C:\\connector\\PI2AWSConnector.exe\"",
-                                            "\"C:\\nssm\\win64\\nssm.exe\" set pi2aws-connector Start SERVICE_AUTO_START"
+                                            "\"C:\\connector\\nssm.exe\" install pi2aws-connector \"C:\\connector\\PI2AWSConnector.exe\"",
+                                            "\"C:\\connector\\nssm.exe\" set pi2aws-connector Start SERVICE_AUTO_START"
                                         ]
                                     ]
                                 },
                                 "waitAfterCompletion": "0"
                             },
-                            "8b-set-up-wis": {
+                            "9c-set-up-wis": {
                                 "command": {
                                     "Fn::If": [
                                         "UseWIS",
@@ -632,12 +631,12 @@
                                 },
                                 "waitAfterCompletion": "15"
                             },
-                            "9-run-connector": {
+                            "9d-run-connector": {
                                 "command": {
                                     "Fn::If": [
                                         "UseWIS",
-                                        "schtasks /run /tn \"vpnconn\"",
-                                        "\"C:\\nssm\\win64\\nssm.exe\" start pi2aws-connector"
+                                        "\n",
+                                        "\"C:\\connector\\nssm.exe\" start pi2aws-connector"
                                     ]
                                 },
                                 "waitAfterCompletion": "0"
@@ -676,28 +675,35 @@
                             "",
                             [
                                 "<powershell>\n",
-                                "cfn-init.exe -v --stack ",
+                                "$StackName =\"",
                                 {
                                     "Ref": "AWS::StackName"
                                 },
-                                " --resource PI2AWSConnectorLaunchConfiguration",
-                                " --region ",
+                                "\"\n$Region =\"",
                                 {
                                     "Ref": "AWS::Region"
                                 },
-                                "\n",
-                                "Restart-Service AmazonSSMAgent",
-                                "\n",
-                                "cfn-signal.exe -e $lastExitCode --stack ",
+                                "\"\n$RegionalLambdaBucketName =\"",
                                 {
-                                    "Ref": "AWS::StackName"
+                                    "Ref": "RegionalLambdaBucketName"
                                 },
-                                " --resource PI2AWSConnectorAutoScalingGroup",
-                                " --region ",
+                                "\"\n$LicencedBinaryKeyPrefix =\"",
                                 {
-                                    "Ref": "AWS::Region"
+                                    "Ref": "LicensedSoftwareS3KeyPrefix"
                                 },
+                                "\"\n",
+                                "Invoke-WebRequest -Uri https://s3.amazonaws.com/aws-cli/AWSCLI64.msi -OutFile C:\\AWSCLI64.msi\n",
+                                "msiexec.exe /i \"c:\\AWSCLI64.msi\" /QN /L*E \"C:\\install-log-awscli.log\" | Out-Null \n",
+                                "& \"C:\\Program Files\\Amazon\\AWSCLI\\aws.exe\" s3 sync s3://$RegionalLambdaBucketName/$LicencedBinaryKeyPrefix C:\\AF-Install-Kit | Out-Default \n",
                                 "\n",
+                                "if (Test-Path \"C:\\AF-Install-Kit\\PI-AF-Client.exe\") {\n",
+                                "    cfn-init.exe -v --stack $StackName --resource PI2AWSConnectorLaunchConfiguration --region $Region\n",
+                                "    Restart-Service AmazonSSMAgent\n",
+                                "    cfn-signal.exe -e $lastExitCode --stack $StackName --resource PI2AWSConnectorAutoScalingGroup --region $Region\n",
+                                "    Restart-Computer -Force\n",
+                                "} else {\n",
+                                "    cfn-signal.exe --success true --stack $StackName --resource PI2AWSConnectorAutoScalingGroup --region $Region\n",
+                                "}\n",
                                 "</powershell>"
                             ]
                         ]

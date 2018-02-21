@@ -25,7 +25,11 @@ class PiPointsList extends Component {
     }
 
     componentDidMount() {
-        this.loadPiPoints();
+        if (this.props.piPointsList.length === 0) {
+            this.loadPiPoints();
+        } else {
+            this.setState({loading: false});
+        }
     }
 
     loadPiPoints() {

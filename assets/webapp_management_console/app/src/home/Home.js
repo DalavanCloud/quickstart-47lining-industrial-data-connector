@@ -7,7 +7,7 @@ function Home() {
         <Grid>
             <Col sm={6} smOffset={3}>
                 <Jumbotron>
-                    <h2>Welcome to PI to AWS Management Console</h2>
+                    <h2>Welcome to OSIsoft PI System to AWS Connector Management Console</h2>
                 </Jumbotron>
             </Col>
         </Grid>

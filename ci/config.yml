@@ -8,7 +8,7 @@ global:
     - eu-west-1
   reporting: true
 tests:
-  pi2aws-test:
+  pi2aws:
     parameter_input: pi2aws-test.json
     template_file: pi2aws-master.template
     regions:

@@ -193,7 +193,7 @@ function AttributesTable(props) {
 }
 
 function Attributes(props) {
-    if (props.data.length === 0) {
+    if (props.data === null || props.data.length === 0) {
         return '';
     } else {
         return (

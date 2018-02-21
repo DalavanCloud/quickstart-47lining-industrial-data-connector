@@ -1,11 +1,35 @@
 [
   {
+      "ParameterKey": "ConnectorAgentAssetsS3BucketName",
+      "ParameterValue": "aws-quickstart-datasets"
+  },
+  {
+      "ParameterKey": "ConnectorAgentAssetsS3KeyPrefix",
+      "ParameterValue": "osisoft/agent/v1/"
+  },
+  {
       "ParameterKey": "QSDeploymentSuffix",
-      "ParameterValue": "taskcat"
+      "ParameterValue": "t"
   },
   {
       "ParameterKey": "RemoteAccessCIDR",
       "ParameterValue": "1.1.1.1/32"
+  },
+  {
+      "ParameterKey": "InstanceType",
+      "ParameterValue": "t2.micro"
+  },
+  {
+      "ParameterKey": "ConnectorInstanceType",
+      "ParameterValue": "t2.micro"
+  },
+  {
+      "ParameterKey": "WorkerInstanceType",
+      "ParameterValue": "t2.micro"
+  },
+  {
+      "ParameterKey": "KeyName",
+      "ParameterValue": "$[alfred_getkeypair]"
   },
   {
       "ParameterKey": "VPCDefinition",
@@ -16,84 +40,20 @@
       "ParameterValue": "$[alfred_genaz_2]"
   },
   {
-      "ParameterKey": "KeyName",
-      "ParameterValue": "$[alfred_getkeypair]"
-  },
-  {
-      "ParameterKey": "AFDomainName",
-      "ParameterValue": "AFDomainName"
-  },
-  {
-      "ParameterKey": "AFPassword",
-      "ParameterValue": "$[alfred_genpass_16]"
-  },
-  {
-      "ParameterKey": "AFPort",
-      "ParameterValue": "5450"
-  },
-  {
-      "ParameterKey": "AfStructureDatabase",
-      "ParameterValue": "NuGreen"
-  },
-  {
-      "ParameterKey": "AFUser",
-      "ParameterValue": "AFUser"
-  },
-  {
-      "ParameterKey": "AFServerIP",
-      "ParameterValue": "1.1.1.1"
-  },
-  {
-      "ParameterKey": "PIServerIP",
-      "ParameterValue": "1.1.1.1"
-  },
-  {
-      "ParameterKey": "PIUser",
-      "ParameterValue": "PIUser"
-  },
-  {
-      "ParameterKey": "PIPassword",
-      "ParameterValue": "$[alfred_genpass_16]"
-  },
-  {
-      "ParameterKey": "PIPort",
-      "ParameterValue": "5450"
-  },
-  {
-      "ParameterKey": "ConnectorInstanceType",
-      "ParameterValue": "t2.micro"
-  },
-  {
-      "ParameterKey": "QSS3ConnectorBucketName",
-      "ParameterValue": "47lining-osisoft-temporary-connector-release-us-east-1"
-  },
-  {
-      "ParameterKey": "QSS3ConnectorKeyPrefix",
-      "ParameterValue": "osisoft-pi2aws/"
-  },
-  {
-      "ParameterKey": "LogGroupNamePrefix",
-      "ParameterValue": "ConnectorLogGroup"
-  },
-  {
-      "ParameterKey": "MetricNamespaceNamePrefix",
-      "ParameterValue": "ConnectorMetricNamespace"
-  },
-  {
-      "ParameterKey": "WorkerInstanceType",
-      "ParameterValue": "t2.micro"
-  },
-  {
-      "ParameterKey": "InstanceType",
-      "ParameterValue": "t2.micro"
+      "ParameterKey": "ApplicationUser",
+      "ParameterValue": "ConsoleAdmin"
   },
   {
       "ParameterKey": "ApplicationPassword",
       "ParameterValue": "$[alfred_genpass_16]"
   },
   {
-      "ParameterKey": "MaxIndexAge",
-      "ParameterValue": "7"
+      "ParameterKey": "ReadCapacity",
+      "ParameterValue": "1"
+  },
+  {
+      "ParameterKey": "WriteCapacity",
+      "ParameterValue": "1"
   },
   {
       "ParameterKey": "ElasticsearchNodeCount",
@@ -104,12 +64,64 @@
       "ParameterValue": "t2.small.elasticsearch"
   },
   {
-      "ParameterKey": "ReadCapacity",
-      "ParameterValue": "1"
+      "ParameterKey": "AfStructureDatabase",
+      "ParameterValue": "NuGreen"
   },
   {
-      "ParameterKey": "WriteCapacity",
-      "ParameterValue": "1"
+      "ParameterKey": "LogGroupNamePrefix",
+      "ParameterValue": "ConnectorLogGroup"
+  },
+  {
+      "ParameterKey": "MetricNamespaceNamePrefix",
+      "ParameterValue": "ConnectorMetricNamespace"
+  },
+  {
+      "ParameterKey": "PIServerIP",
+      "ParameterValue": "1.1.1.1"
+  },
+  {
+      "ParameterKey": "AFUser",
+      "ParameterValue": "AFUser"
+  },
+  {
+      "ParameterKey": "PIPort",
+      "ParameterValue": "5450"
+  },
+  {
+      "ParameterKey": "AFServerIP",
+      "ParameterValue": "1.1.1.1"
+  },
+  {
+      "ParameterKey": "AFPort",
+      "ParameterValue": "5450"
+  },
+  {
+      "ParameterKey": "AFPassword",
+      "ParameterValue": "$[alfred_genpass_16]"
+  },
+  {
+      "ParameterKey": "AFDomainName",
+      "ParameterValue": "AFDomainName"
+  },
+  {
+      "ParameterKey": "PIUser",
+      "ParameterValue": "PIUser"
+  },
+  {
+      "ParameterKey": "PIPassword",
+      "ParameterValue": "$[alfred_genpass_16]"
+  },
+  {
+      "ParameterKey": "LicensedSoftwareS3BucketName",
+      "ParameterValue": "aws-quickstart-datasets"
+  },
+  {
+      "ParameterKey": "LicensedSoftwareS3KeyPrefix",
+      "ParameterValue": "quickstart-osisoft/licensed-software/"
+  },
+  {
+      "ParameterKey": "MaxIndexAge",
+      "ParameterValue": "7"
   },
   {
       "ParameterKey": "EnableS3LifecycleRules",
@@ -124,7 +136,27 @@
       "ParameterValue": "365"
   },
   {
-    "ParameterKey": "ApplicationUser",
-    "ParameterValue": "ConsoleAdmin"
+      "ParameterKey": "KinesisStreamsShardsCount",
+      "ParameterValue": "1"
+  },
+  {
+      "ParameterKey": "AuthType",
+      "ParameterValue": "Explicit user and password"
+  },
+  {
+      "ParameterKey": "WISUser",
+      "ParameterValue": ""
+  },
+  {
+      "ParameterKey": "WISPassword",
+      "ParameterValue": ""
+  },
+  {
+      "ParameterKey": "WISFQDN",
+      "ParameterValue": ""
+  },
+  {
+      "ParameterKey": "DomainControllerServerIP",
+      "ParameterValue": ""
   }
 ]
