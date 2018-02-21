@@ -2,10 +2,14 @@
     "AWSTemplateFormatVersion": "2010-09-09",
     "Description": "AWS Cloudformation template to create EC2 instance and run server. **WARNING** This template creates an Amazon EC2 instance. You will be billed for the AWS resources used if you create a stack from this template.",
     "Parameters": {
+        "CommunicationWorkerServerInstanceProfileARN": {
+            "Type": "String"
+        },
+        "EventsStatusTable": {
+            "Description": "Table name for DynamoDB database which holds state of point updates",
+            "Type": "String"
+        },
         "InstanceType": {
-            "Description": "Server EC2 instance type",
-            "Type": "String",
-            "Default": "t2.micro",
             "AllowedValues": [
                 "t2.micro",
                 "t2.small",
@@ -23,16 +27,24 @@
                 "c4.4xlarge",
                 "c4.8xlarge"
             ],
-            "ConstraintDescription": "must be a valid EC2 instance type."
+            "ConstraintDescription": "must be a valid EC2 instance type.",
+            "Default": "t2.micro",
+            "Description": "Server EC2 instance type",
+            "Type": "String"
         },
         "KeyName": {
+            "ConstraintDescription": "Can contain only ASCII characters.",
             "Description": "Name of an existing EC2 KeyPair to enable SSH access to the instance",
-            "Type": "AWS::EC2::KeyPair::KeyName",
-            "ConstraintDescription": "Can contain only ASCII characters."
+            "Type": "AWS::EC2::KeyPair::KeyName"
         },
-        "VpcId": {
-            "Description": "Communication Worker VPC",
-            "Type": "AWS::EC2::VPC::Id"
+        "NumCommunicationWorkerInstances": {
+            "Default": 1,
+            "Description": "Number of communication worker server instances in Auto scaling group",
+            "Type": "Number"
+        },
+        "PiPointsTableName": {
+            "Description": "Table name for DynamoDB database which holds subscriptions of managed feeds",
+            "Type": "String"
         },
         "PrivateSubnet1ID": {
             "Description": "Worker server subnet 1",
@@ -42,31 +54,27 @@
             "Description": "Worker server subnet 2",
             "Type": "AWS::EC2::Subnet::Id"
         },
-        "NumCommunicationWorkerInstances": {
-            "Description": "Number of communication worker server instances in Auto scaling group",
-            "Type": "Number",
-            "Default": 1
+        "QSDeploymentSuffix": {
+            "AllowedPattern": "[a-z0-9]+",
+            "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
+            "Default": "qs",
+            "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
+            "MaxLength": 7,
+            "MinLength": 1,
+            "Type": "String"
         },
         "QSS3Bucket": {
-            "ConstraintDescription": "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
-            "Description": "S3 bucket where the templates and scripts are installed. Use this parameter to specify the S3 bucket name you've created for your copy of Quick Start assets, if you decide to customize or extend the Quick Start for your own use. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens, but should not start or end with a hyphen.",
             "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
-            "Type": "String",
-            "Default": "quickstart-reference"
+            "ConstraintDescription": "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
+            "Default": "quickstart-reference",
+            "Description": "S3 bucket where the templates and scripts are installed. Use this parameter to specify the S3 bucket name you've created for your copy of Quick Start assets, if you decide to customize or extend the Quick Start for your own use. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens, but should not start or end with a hyphen.",
+            "Type": "String"
         },
         "QSS3KeyPrefix": {
             "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
             "ConstraintDescription": "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
+            "Default": "osisoft/47lining/latest/",
             "Description": "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
-            "Type": "String",
-            "Default": "osisoft/47lining/latest/"
-        },
-        "EventsStatusTable": {
-            "Description": "Table name for DynamoDB database which holds state of point updates",
-            "Type": "String"
-        },
-        "PiPointsTableName": {
-            "Description": "Table name for DynamoDB database which holds subscriptions of managed feeds",
             "Type": "String"
         },
         "VPCCIDR": {
@@ -75,17 +83,9 @@
             "Description": "CIDR block for the VPC.",
             "Type": "String"
         },
-        "CommunicationWorkerServerInstanceProfileARN": {
-            "Type": "String"
-        },
-        "QSDeploymentSuffix": {
-            "Type": "String",
-            "Default": "qs",
-            "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
-            "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
-            "AllowedPattern": "[a-z0-9]+",
-            "MinLength": 1,
-            "MaxLength": 7
+        "VpcId": {
+            "Description": "Communication Worker VPC",
+            "Type": "AWS::EC2::VPC::Id"
         }
     },
     "Mappings": {
@@ -106,39 +106,6 @@
     },
     "Resources": {
         "CommunicationWorkerServerAutoScalingGroup": {
-            "Type": "AWS::AutoScaling::AutoScalingGroup",
-            "Properties": {
-                "LaunchConfigurationName": {
-                    "Ref": "CommunicationWorkerServerLaunchConfiguration"
-                },
-                "VPCZoneIdentifier": [
-                    {
-                        "Ref": "PrivateSubnet1ID"
-                    },
-                    {
-                        "Ref": "PrivateSubnet2ID"
-                    }
-                ],
-                "MinSize": {
-                    "Ref": "NumCommunicationWorkerInstances"
-                },
-                "MaxSize": {
-                    "Ref": "NumCommunicationWorkerInstances"
-                },
-                "Cooldown": "300",
-                "DesiredCapacity": {
-                    "Ref": "NumCommunicationWorkerInstances"
-                },
-                "Tags": [
-                    {
-                        "Key": "Name",
-                        "Value": {
-                            "Fn::Sub": "PI2AWSWorkerServer-${QSDeploymentSuffix}"
-                        },
-                        "PropagateAtLaunch": "true"
-                    }
-                ]
-            },
             "CreationPolicy": {
                 "ResourceSignal": {
                     "Count": {
@@ -146,18 +113,51 @@
                     },
                     "Timeout": "PT15M"
                 }
-            }
+            },
+            "Properties": {
+                "Cooldown": "300",
+                "DesiredCapacity": {
+                    "Ref": "NumCommunicationWorkerInstances"
+                },
+                "LaunchConfigurationName": {
+                    "Ref": "CommunicationWorkerServerLaunchConfiguration"
+                },
+                "MaxSize": {
+                    "Ref": "NumCommunicationWorkerInstances"
+                },
+                "MinSize": {
+                    "Ref": "NumCommunicationWorkerInstances"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "PropagateAtLaunch": "true",
+                        "Value": {
+                            "Fn::Sub": "PI2AWSWorkerServer-${QSDeploymentSuffix}"
+                        }
+                    }
+                ],
+                "VPCZoneIdentifier": [
+                    {
+                        "Ref": "PrivateSubnet1ID"
+                    },
+                    {
+                        "Ref": "PrivateSubnet2ID"
+                    }
+                ]
+            },
+            "Type": "AWS::AutoScaling::AutoScalingGroup"
         },
         "CommunicationWorkerServerLaunchConfiguration": {
-            "Type": "AWS::AutoScaling::LaunchConfiguration",
             "Metadata": {
-                "Comment": "Install server",
                 "AWS::CloudFormation::Init": {
                     "config": {
-                        "packages": {
-                            "yum": {
-                                "python34": [],
-                                "python34-pip": []
+                        "commands": {
+                            "1_run_bootstrap": {
+                                "command": "sh -e /etc/bootstrap.sh"
+                            },
+                            "2_run_worker": {
+                                "command": "/usr/local/bin/supervisord"
                             }
                         },
                         "files": {
@@ -184,9 +184,9 @@
                                         ]
                                     ]
                                 },
+                                "group": "ec2-user",
                                 "mode": "000770",
-                                "owner": "ec2-user",
-                                "group": "ec2-user"
+                                "owner": "ec2-user"
                             },
                             "/etc/supervisord.conf": {
                                 "content": {
@@ -236,31 +236,24 @@
                                         ]
                                     ]
                                 },
+                                "group": "ec2-user",
                                 "mode": "000444",
-                                "owner": "ec2-user",
-                                "group": "ec2-user"
+                                "owner": "ec2-user"
                             }
                         },
-                        "commands": {
-                            "1_run_bootstrap": {
-                                "command": "sh -e /etc/bootstrap.sh"
-                            },
-                            "2_run_worker": {
-                                "command": "/usr/local/bin/supervisord"
+                        "packages": {
+                            "yum": {
+                                "python34": [],
+                                "python34-pip": []
                             }
                         }
                     }
-                }
+                },
+                "Comment": "Install server"
             },
             "Properties": {
-                "KeyName": {
-                    "Ref": "KeyName"
-                },
                 "IamInstanceProfile": {
                     "Ref": "CommunicationWorkerServerInstanceProfileARN"
-                },
-                "InstanceType": {
-                    "Ref": "InstanceType"
                 },
                 "ImageId": {
                     "Fn::FindInMap": [
@@ -270,6 +263,12 @@
                         },
                         "AMZNLINUXHVM"
                     ]
+                },
+                "InstanceType": {
+                    "Ref": "InstanceType"
+                },
+                "KeyName": {
+                    "Ref": "KeyName"
                 },
                 "SecurityGroups": [
                     {
@@ -296,26 +295,27 @@
                         ]
                     }
                 }
-            }
+            },
+            "Type": "AWS::AutoScaling::LaunchConfiguration"
         },
         "InstanceSecurityGroup": {
-            "Type": "AWS::EC2::SecurityGroup",
             "Properties": {
-                "VpcId": {
-                    "Ref": "VpcId"
-                },
                 "GroupDescription": "Enable SSH access from Bastion via port 22",
                 "SecurityGroupIngress": [
                     {
-                        "IpProtocol": "tcp",
-                        "FromPort": "22",
-                        "ToPort": "22",
                         "CidrIp": {
                             "Ref": "VPCCIDR"
-                        }
+                        },
+                        "FromPort": "22",
+                        "IpProtocol": "tcp",
+                        "ToPort": "22"
                     }
-                ]
-            }
+                ],
+                "VpcId": {
+                    "Ref": "VpcId"
+                }
+            },
+            "Type": "AWS::EC2::SecurityGroup"
         },
         "PIIncomingQueue": {
             "Type": "AWS::SQS::Queue"

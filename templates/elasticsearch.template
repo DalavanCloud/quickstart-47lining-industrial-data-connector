@@ -3,13 +3,15 @@
     "Description": "**WARNING** This template creates an Amazon Elasticsearch Service domain. You will be billed for the AWS resources used if you create a stack from this template.",
     "Parameters": {
         "ElasticsearchAccessCIDR": {
-            "Type": "String",
-            "Description": "IP address allowed to access Kibana and Elasticsearch"
+            "Description": "IP address allowed to access Kibana and Elasticsearch",
+            "Type": "String"
+        },
+        "ElasticsearchNodeCount": {
+            "Default": "1",
+            "Description": "The number of nodes in the Elasticsearch cluster.",
+            "Type": "Number"
         },
         "ElasticsearchNodeType": {
-            "Description": "The node type to be provisioned for the Elasticsearch cluster",
-            "Type": "String",
-            "Default": "t2.small.elasticsearch",
             "AllowedValues": [
                 "t2.small.elasticsearch",
                 "m4.large.elasticsearch",
@@ -19,38 +21,21 @@
                 "r4.large.elasticsearch",
                 "r4.xlarge.elasticsearch"
             ],
-            "ConstraintDescription": "must be a valid Elasticsearch node type."
-        },
-        "ElasticsearchNodeCount": {
-            "Description": "The number of nodes in the Elasticsearch cluster.",
-            "Type": "Number",
-            "Default": "1"
+            "ConstraintDescription": "must be a valid Elasticsearch node type.",
+            "Default": "t2.small.elasticsearch",
+            "Description": "The node type to be provisioned for the Elasticsearch cluster",
+            "Type": "String"
         }
     },
     "Resources": {
         "ElasticsearchDomain": {
-            "Type": "AWS::Elasticsearch::Domain",
             "Properties": {
-                "ElasticsearchClusterConfig": {
-                    "DedicatedMasterEnabled": "false",
-                    "InstanceCount": {
-                        "Ref": "ElasticsearchNodeCount"
-                    },
-                    "ZoneAwarenessEnabled": "false",
-                    "InstanceType": {
-                        "Ref": "ElasticsearchNodeType"
-                    }
-                },
-                "ElasticsearchVersion": "5.1",
                 "AccessPolicies": {
-                    "Version": "2012-10-17",
                     "Statement": [
                         {
                             "Action": [
                                 "es:*"
                             ],
-                            "Principal": "*",
-                            "Effect": "Allow",
                             "Condition": {
                                 "IpAddress": {
                                     "aws:SourceIp": [
@@ -59,20 +44,26 @@
                                         }
                                     ]
                                 }
-                            }
+                            },
+                            "Effect": "Allow",
+                            "Principal": "*"
                         },
                         {
                             "Action": [
                                 "es:*"
                             ],
+                            "Effect": "Allow",
                             "Principal": {
                                 "Service": [
                                     "lambda.amazonaws.com"
                                 ]
-                            },
-                            "Effect": "Allow"
+                            }
                         }
-                    ]
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "AdvancedOptions": {
+                    "rest.action.multi.allow_explicit_index": "true"
                 },
                 "EBSOptions": {
                     "EBSEnabled": true,
@@ -80,24 +71,39 @@
                     "VolumeSize": 10,
                     "VolumeType": "gp2"
                 },
+                "ElasticsearchClusterConfig": {
+                    "DedicatedMasterEnabled": "false",
+                    "InstanceCount": {
+                        "Ref": "ElasticsearchNodeCount"
+                    },
+                    "InstanceType": {
+                        "Ref": "ElasticsearchNodeType"
+                    },
+                    "ZoneAwarenessEnabled": "false"
+                },
+                "ElasticsearchVersion": "5.1",
                 "SnapshotOptions": {
                     "AutomatedSnapshotStartHour": "0"
-                },
-                "AdvancedOptions": {
-                    "rest.action.multi.allow_explicit_index": "true"
                 }
-            }
+            },
+            "Type": "AWS::Elasticsearch::Domain"
         }
     },
     "Outputs": {
         "DomainARN": {
             "Value": {
-                "Fn::GetAtt": ["ElasticsearchDomain", "DomainArn"]
+                "Fn::GetAtt": [
+                    "ElasticsearchDomain",
+                    "DomainArn"
+                ]
             }
         },
         "DomainEndpoint": {
             "Value": {
-                "Fn::GetAtt": ["ElasticsearchDomain", "DomainEndpoint"]
+                "Fn::GetAtt": [
+                    "ElasticsearchDomain",
+                    "DomainEndpoint"
+                ]
             }
         }
     }

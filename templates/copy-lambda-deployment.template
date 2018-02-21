@@ -2,18 +2,18 @@
     "AWSTemplateFormatVersion": "2010-09-09",
     "Description": "Lambdas for performing generic periodic actions. **WARNING** This template creates an Amazon Lambda. You will be billed for the AWS resources used if you create a stack from this template.",
     "Parameters": {
-        "QSS3BucketName": {
-            "Type": "String",
-            "Default": "quickstart-reference"
-        },
-        "QSS3KeyPrefix": {
-            "Type": "String",
-            "Default": "osisoft/47lining/latest/"
-        },
-        "RegionalLambdaBucketName": {
+        "CopyLambdaDeploymentRoleARN": {
             "Type": "String"
         },
-        "CopyLambdaDeploymentRoleARN": {
+        "QSS3BucketName": {
+            "Default": "quickstart-reference",
+            "Type": "String"
+        },
+        "QSS3KeyPrefix": {
+            "Default": "osisoft/47lining/latest/",
+            "Type": "String"
+        },
+        "RegionalLambdaBucketName": {
             "Type": "String"
         }
     },

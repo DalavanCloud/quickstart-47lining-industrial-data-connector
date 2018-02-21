@@ -13,8 +13,30 @@
         }
     },
     "Resources": {
+        "PublishedDataBucket": {
+            "DeletionPolicy": "Retain",
+            "Properties": {
+                "BucketName": {
+                    "Fn::Join": [
+                        "-",
+                        [
+                            "datalake-published-data-pi2aws",
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            {
+                                "Ref": "QSDeploymentSuffix"
+                            }
+                        ]
+                    ]
+                }
+            },
+            "Type": "AWS::S3::Bucket"
+        },
         "RegionalLambdaBucket": {
-            "Type": "AWS::S3::Bucket",
             "Properties": {
                 "BucketName": {
                     "Fn::Join": [
@@ -35,11 +57,11 @@
                         ]
                     ]
                 }
-            }
+            },
+            "Type": "AWS::S3::Bucket"
         },
         "SubmissionsBucket": {
-            "Type": "AWS::S3::Bucket",
-            "DeletionPolicy" : "Retain",
+            "DeletionPolicy": "Retain",
             "Properties": {
                 "BucketName": {
                     "Fn::Join": [
@@ -58,30 +80,8 @@
                         ]
                     ]
                 }
-            }
-        },
-        "PublishedDataBucket": {
-            "Type": "AWS::S3::Bucket",
-            "DeletionPolicy" : "Retain",
-            "Properties": {
-                "BucketName": {
-                    "Fn::Join": [
-                        "-",
-                        [
-                            "datalake-published-data-pi2aws",
-                            {
-                                "Ref": "AWS::AccountId"
-                            },
-                            {
-                                "Ref": "AWS::Region"
-                            },
-                            {
-                                "Ref": "QSDeploymentSuffix"
-                            }
-                        ]
-                    ]
-                }
-            }
+            },
+            "Type": "AWS::S3::Bucket"
         }
     },
     "Outputs": {

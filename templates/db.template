@@ -2,62 +2,33 @@
     "AWSTemplateFormatVersion": "2010-09-09",
     "Description": "**WARNING** This template creates an Amazon DynamoDB tables. You will be billed for the AWS resources used if you create a stack from this template.",
     "Parameters": {
-        "ReadCapacity": {
-            "Description": "Read capacity of the tables",
-            "Type": "Number",
-            "Default": 1,
-            "MinValue": 1,
-            "MaxValue": 10000,
-            "ConstraintDescription": "Must be between 1 and 10000"
-        },
-        "WriteCapacity": {
-            "Description": "Write capacity of the tables",
-            "Type": "Number",
-            "Default": 1,
-            "MinValue": 1,
-            "MaxValue": 10000,
-            "ConstraintDescription": "Must be between 1 and 10000"
+        "EventsStatusTableName": {
+            "Description": "Table name for DynamoDB database which holds state of point updates",
+            "Type": "String"
         },
         "PiPointsTableName": {
             "Description": "Table name for DynamoDB database which holds subscriptions of managed feeds",
             "Type": "String"
         },
-        "EventsStatusTableName": {
-            "Description": "Table name for DynamoDB database which holds state of point updates",
-            "Type": "String"
+        "ReadCapacity": {
+            "ConstraintDescription": "Must be between 1 and 10000",
+            "Default": 1,
+            "Description": "Read capacity of the tables",
+            "MaxValue": 10000,
+            "MinValue": 1,
+            "Type": "Number"
+        },
+        "WriteCapacity": {
+            "ConstraintDescription": "Must be between 1 and 10000",
+            "Default": 1,
+            "Description": "Write capacity of the tables",
+            "MaxValue": 10000,
+            "MinValue": 1,
+            "Type": "Number"
         }
     },
     "Resources": {
-        "PiPointsTable": {
-            "Type": "AWS::DynamoDB::Table",
-            "Properties": {
-                "AttributeDefinitions": [
-                    {
-                        "AttributeName": "pi_point",
-                        "AttributeType": "S"
-                    }
-                ],
-                "KeySchema": [
-                    {
-                        "AttributeName": "pi_point",
-                        "KeyType": "HASH"
-                    }
-                ],
-                "ProvisionedThroughput": {
-                    "ReadCapacityUnits": {
-                        "Ref": "ReadCapacity"
-                    },
-                    "WriteCapacityUnits": {
-                        "Ref": "WriteCapacity"
-                    }
-                },
-                "TableName": {
-                    "Ref": "PiPointsTableName"
-                }
-            }
-        },
         "EventsStatusTable": {
-            "Type": "AWS::DynamoDB::Table",
             "Properties": {
                 "AttributeDefinitions": [
                     {
@@ -75,12 +46,6 @@
                     {
                         "AttributeName": "create_date",
                         "AttributeType": "S"
-                    }
-                ],
-                "KeySchema": [
-                    {
-                        "AttributeName": "id",
-                        "KeyType": "HASH"
                     }
                 ],
                 "GlobalSecondaryIndexes": [
@@ -125,6 +90,12 @@
                         }
                     }
                 ],
+                "KeySchema": [
+                    {
+                        "AttributeName": "id",
+                        "KeyType": "HASH"
+                    }
+                ],
                 "ProvisionedThroughput": {
                     "ReadCapacityUnits": {
                         "Ref": "ReadCapacity"
@@ -136,7 +107,36 @@
                 "TableName": {
                     "Ref": "EventsStatusTableName"
                 }
-            }
+            },
+            "Type": "AWS::DynamoDB::Table"
+        },
+        "PiPointsTable": {
+            "Properties": {
+                "AttributeDefinitions": [
+                    {
+                        "AttributeName": "pi_point",
+                        "AttributeType": "S"
+                    }
+                ],
+                "KeySchema": [
+                    {
+                        "AttributeName": "pi_point",
+                        "KeyType": "HASH"
+                    }
+                ],
+                "ProvisionedThroughput": {
+                    "ReadCapacityUnits": {
+                        "Ref": "ReadCapacity"
+                    },
+                    "WriteCapacityUnits": {
+                        "Ref": "WriteCapacity"
+                    }
+                },
+                "TableName": {
+                    "Ref": "PiPointsTableName"
+                }
+            },
+            "Type": "AWS::DynamoDB::Table"
         }
     },
     "Outputs": {
