@@ -9,7 +9,7 @@
   },
   {
       "ParameterKey": "QSDeploymentSuffix",
-      "ParameterValue": "t"
+      "ParameterValue": "qs"
   },
   {
       "ParameterKey": "RemoteAccessCIDR",
