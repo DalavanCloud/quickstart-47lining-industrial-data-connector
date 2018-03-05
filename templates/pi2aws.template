@@ -23,14 +23,14 @@
                         "default": "Network Configuration"
                     },
                     "Parameters": [
-                        "RemoteAccessCIDR",
                         "AvailabilityZones",
-                        "VPCCIDR",
                         "VPCID",
+                        "VPCCIDR",
                         "PrivateSubnet1ID",
                         "PrivateSubnet2ID",
                         "PublicSubnet1ID",
                         "PublicSubnet2ID",
+                        "RemoteAccessCIDR",
                         "KeyName"
                     ]
                 },

@@ -9,9 +9,9 @@
                         "default": "Network Configuration"
                     },
                     "Parameters": [
-                        "RemoteAccessCIDR",
-                        "VPCDefinition",
                         "AvailabilityZones",
+                        "VPCDefinition",
+                        "RemoteAccessCIDR",
                         "KeyName"
                     ]
                 },
