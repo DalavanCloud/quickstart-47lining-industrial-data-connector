@@ -1,6 +1,6 @@
 {
     "AWSTemplateFormatVersion": "2010-09-09",
-    "Description": "Deploy OSIsoft PI System to AWS Connector Quick Start into existing VPC. **WARNING** You will be billed for the AWS resources used if you create a stack from this template.",
+    "Description": "Deploy OSIsoft PI System to AWS Connector Quick Start into existing VPC. **WARNING** You will be billed for the AWS resources used if you create a stack from this template. (qs-1o800q0dn)",
     "Mappings": {
         "Constants": {
             "Buckets": {
