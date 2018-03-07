@@ -1,4 +1,4 @@
-# quickstart-osisoft
+# quickstart-osisoft-pisystem2aws-connector
 ## OSIsoft PI System to AWS Connector on the AWS Cloud
 
 
