@@ -39,7 +39,7 @@
                     "Ref": "CopyLicencedBinaryLambdaRoleARN"
                 },
                 "Runtime": "python3.6",
-                "Timeout": 30
+                "Timeout": 300
             },
             "Type": "AWS::Lambda::Function"
         },

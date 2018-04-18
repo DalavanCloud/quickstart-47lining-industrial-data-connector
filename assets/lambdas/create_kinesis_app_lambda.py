@@ -11,7 +11,7 @@ log = logging.getLogger()
 
 
 def _create_managed_feeds_application_config(app_name, input_stream_arn, output_elasticsearch_stream_arn,
-                                             output_s3_stream_arn, role_arn):
+                                             output_s3_numeric_stream_arn, output_s3_text_stream_arn, role_arn):
     return dict(
         ApplicationName=app_name,
         Inputs=[
@@ -46,7 +46,7 @@ def _create_managed_feeds_application_config(app_name, input_stream_arn, output_
                         },
                         {
                             'Name': 'feed_value',
-                            'SqlType': 'DOUBLE'
+                            'SqlType': 'VARCHAR(128)'
                         },
                         {
                             'Name': 'feed_timestamp',
@@ -68,9 +68,19 @@ def _create_managed_feeds_application_config(app_name, input_stream_arn, output_
                 }
             },
             {
-                'Name': 'MANAGED_FEEDS_S3_OUTPUT',
+                'Name': 'MANAGED_FEEDS_S3_NUMERIC_OUTPUT',
                 'KinesisFirehoseOutput': {
-                    'ResourceARN': output_s3_stream_arn,
+                    'ResourceARN': output_s3_numeric_stream_arn,
+                    'RoleARN': role_arn
+                },
+                'DestinationSchema': {
+                    'RecordFormatType': 'CSV'
+                }
+            },
+            {
+                'Name': 'MANAGED_FEEDS_S3_TEXT_OUTPUT',
+                'KinesisFirehoseOutput': {
+                    'ResourceARN': output_s3_text_stream_arn,
                     'RoleARN': role_arn
                 },
                 'DestinationSchema': {
@@ -86,20 +96,34 @@ def _create_managed_feeds_application_config(app_name, input_stream_arn, output_
                 "timestamp" VARCHAR(64)
             );
 
-            CREATE STREAM "MANAGED_FEEDS_S3_OUTPUT" (
+            CREATE STREAM "MANAGED_FEEDS_S3_NUMERIC_OUTPUT" (
                 "name" VARCHAR(64),
                 "data_source" VARCHAR(64),
                 "value" DOUBLE,
                 "timestamp" VARCHAR(64)
             );
+            
+            CREATE STREAM "MANAGED_FEEDS_S3_TEXT_OUTPUT" (
+                "name" VARCHAR(64),
+                "data_source" VARCHAR(64),
+                "value" VARCHAR(128),
+                "timestamp" VARCHAR(64)
+            );
 
             CREATE PUMP "STREAM_PUMP1" AS INSERT INTO "MANAGED_FEEDS_ES_OUTPUT"
-            SELECT "name", "data_source", "feed_value", "feed_timestamp"
-            FROM "MANAGED_FEED_INPUT_001";
+            SELECT "name", "data_source", CAST("feed_value" AS DOUBLE), "feed_timestamp"
+            FROM "MANAGED_FEED_INPUT_001"
+            WHERE "feed_value" SIMILAR TO '-?[0-9]+.?[0-9]*(E_[0-9]{2})?';
 
-            CREATE PUMP "STREAM_PUMP2" AS INSERT INTO "MANAGED_FEEDS_S3_OUTPUT"
+            CREATE PUMP "STREAM_PUMP2" AS INSERT INTO "MANAGED_FEEDS_S3_NUMERIC_OUTPUT"
+            SELECT "name", "data_source", CAST("feed_value" AS DOUBLE), REGEX_REPLACE("feed_timestamp", 'T', ' ', 1, 0)
+            FROM "MANAGED_FEED_INPUT_001"
+            WHERE "feed_value" SIMILAR TO '-?[0-9]+.?[0-9]*(E_[0-9]{2})?';
+            
+            CREATE PUMP "STREAM_PUMP3" AS INSERT INTO "MANAGED_FEEDS_S3_TEXT_OUTPUT"
             SELECT "name", "data_source", "feed_value", REGEX_REPLACE("feed_timestamp", 'T', ' ', 1, 0)
-            FROM "MANAGED_FEED_INPUT_001";
+            FROM "MANAGED_FEED_INPUT_001"
+            WHERE NOT ("feed_value" SIMILAR TO '-?[0-9]+.?[0-9]*(E_[0-9]{2})?');
         """
     )
 
@@ -140,7 +164,7 @@ def _create_managed_feed_metrics_application_config(app_name, input_stream_arn, 
                         },
                         {
                             'Name': 'feed_value',
-                            'SqlType': 'DOUBLE'
+                            'SqlType': 'VARCHAR(128)'
                         },
                         {
                             'Name': 'feed_timestamp',
@@ -220,16 +244,17 @@ def _create_and_start_application(client, app_name, app_config):
     log.info(response)
 
 
-def create_applications(region, input_stream_arn, output_elasticsearch_stream_arn, output_s3_stream_arn,
-                        output_updates_per_second_stream_arn, output_updates_per_managed_feed_stream_arn,
-                        role_arn, deployment_suffix):
+def create_applications(region, input_stream_arn, output_elasticsearch_stream_arn, output_s3_numeric_stream_arn,
+                        output_s3_text_stream_arn, output_updates_per_second_stream_arn,
+                        output_updates_per_managed_feed_stream_arn, role_arn, deployment_suffix):
     client = boto3.client('kinesisanalytics', region_name=region)
     app_name = 'managed-feeds-app-{}'.format(deployment_suffix)
     app_config = _create_managed_feeds_application_config(
         app_name,
         input_stream_arn,
         output_elasticsearch_stream_arn,
-        output_s3_stream_arn,
+        output_s3_numeric_stream_arn,
+        output_s3_text_stream_arn,
         role_arn
     )
     _create_and_start_application(client, app_name, app_config)
@@ -268,7 +293,8 @@ def lambda_handler(event, context):
             region=os.environ['AWS_REGION'],
             input_stream_arn=os.environ['INPUT_STREAM_ARN'],
             output_elasticsearch_stream_arn=os.environ['OUTPUT_ES_STREAM_ARN'],
-            output_s3_stream_arn=os.environ['OUTPUT_S3_STREAM_ARN'],
+            output_s3_numeric_stream_arn=os.environ['OUTPUT_S3_NUMERIC_STREAM_ARN'],
+            output_s3_text_stream_arn=os.environ['OUTPUT_S3_TEXT_STREAM_ARN'],
             output_updates_per_second_stream_arn=os.environ['OUTPUT_UPDATES_PER_SECOND_STREAM_ARN'],
             output_updates_per_managed_feed_stream_arn=os.environ['OUTPUT_UPDATES_PER_MANAGED_FEED_ARN'],
             role_arn=os.environ['ROLE_ARN'],

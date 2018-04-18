@@ -1,0 +1,419 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "**WARNING** This template creates Amazon IoT resources. You will be billed for the AWS resources used if you create a stack from this template.",
+    "Parameters": {
+        "DataBucketName": {
+            "Type": "String"
+        },
+        "ElasticsearchEndpoint": {
+            "Type": "String"
+        },
+        "GenerateCSRLambdaRoleARN": {
+            "Type": "String"
+        },
+        "DeactivateCertificateLambdaRoleARN": {
+            "Type": "String"
+        },
+        "IoTRuleRoleArn": {
+            "Type": "String"
+        },
+        "PiServer": {
+            "Type": "String"
+        },
+        "QSDeploymentSuffix": {
+            "AllowedPattern": "[a-z0-9]+",
+            "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
+            "Default": "qs",
+            "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
+            "MaxLength": 7,
+            "MinLength": 1,
+            "Type": "String"
+        },
+        "QSS3BucketName": {
+            "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
+            "ConstraintDescription": "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
+            "Default": "quickstart-reference",
+            "Description": "S3 bucket where the templates and scripts are installed. Use this parameter to specify the S3 bucket name you've created for your copy of Quick Start assets, if you decide to customize or extend the Quick Start for your own use. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens, but should not start or end with a hyphen.",
+            "Type": "String"
+        },
+        "QSS3KeyPrefix": {
+            "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
+            "ConstraintDescription": "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
+            "Default": "osisoft/47lining/latest/",
+            "Description": "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
+            "Type": "String"
+        },
+        "RegionalLambdaBucketName": {
+            "Type": "String"
+        },
+        "RegisterKibanaDashboardRoleARN": {
+            "Type": "String"
+        }
+    },
+    "Resources": {
+        "GenerateCSRFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "RegionalLambdaBucketName"
+                    },
+                    "S3Key": "lambda_deployment_package.zip"
+                },
+                "Description": "Generate CSR and private key",
+                "Handler": "lambdas.generate_csr_lambda.lambda_handler",
+                "Role": {
+                    "Ref": "GenerateCSRLambdaRoleARN"
+                },
+                "Runtime": "python3.6",
+                "Timeout": 60
+            }
+        },
+        "GenerateCSRLambdaCustom": {
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "GenerateCSRFunction",
+                        "Arn"
+                    ]
+                }
+            },
+            "Type": "Custom::GenerateCSRLambda"
+        },
+        "DeactivateCertificateFunction": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "RegionalLambdaBucketName"
+                    },
+                    "S3Key": "lambda_deployment_package.zip"
+                },
+                "Description": "Deactivate IoT Certificate when deleting the stack",
+                "Handler": "lambdas.deactivate_certificate.lambda_handler",
+                "Role": {
+                    "Ref": "DeactivateCertificateLambdaRoleARN"
+                },
+                "Runtime": "python3.6",
+                "Timeout": 60
+            }
+        },
+        "DeactivateCertificateLambdaCustom": {
+            "DependsOn": ["IoTCertificate"],
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "DeactivateCertificateFunction",
+                        "Arn"
+                    ]
+                },
+                "CertificateId": {
+                    "Ref": "IoTCertificate"
+                }
+            },
+            "Type": "Custom::DeactivateCertificateLambda"
+        },
+        "IoTCertificate": {
+            "Type": "AWS::IoT::Certificate",
+            "Properties": {
+                "CertificateSigningRequest": {
+                    "Fn::GetAtt": [
+                        "GenerateCSRLambdaCustom",
+                        "Csr"
+                    ]
+                },
+                "Status": "ACTIVE"
+            }
+        },
+        "IoTPolicy": {
+            "DependsOn": [
+                "IoTCertificate"
+            ],
+            "Type": "AWS::IoT::Policy",
+            "Properties": {
+                "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Action": [
+                                "iot:Connect"
+                            ],
+                            "Effect": "Allow",
+                            "Resource": {
+                                    "Fn::Join": [
+                                    "",
+                                    [
+                                        "arn:aws:iot:",
+                                        {
+                                            "Ref": "AWS::Region"
+                                        },
+                                        ":",
+                                        {
+                                            "Ref": "AWS::AccountId"
+                                        },
+                                        ":client/",
+                                        {
+                                            "Fn::Sub": "${PiServer}-${QSDeploymentSuffix}"
+                                        }
+                                    ]
+                                ]
+                            }
+                        },
+                        {
+                            "Action": [
+                                "iot:Publish"
+                            ],
+                            "Effect": "Allow",
+                            "Resource": {
+                                "Fn::Join": [
+                                    "",
+                                    [
+                                        "arn:aws:iot:",
+                                        {
+                                            "Ref": "AWS::Region"
+                                        },
+                                        ":",
+                                        {
+                                            "Ref": "AWS::AccountId"
+                                        },
+                                        ":topic/*"
+                                    ]
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "PolicyPrincipalAttachment": {
+            "Type": "AWS::IoT::PolicyPrincipalAttachment",
+            "Properties": {
+                "PolicyName": {
+                    "Ref": "IoTPolicy"
+                },
+                "Principal": {
+                    "Fn::GetAtt": [
+                        "IoTCertificate",
+                        "Arn"
+                    ]
+                }
+            }
+        },
+        "RuleNumeric": {
+            "Type": "AWS::IoT::TopicRule",
+            "Properties": {
+                "RuleName": {
+                    "Fn::Sub": "PI2AWSRule_numeric_${QSDeploymentSuffix}"
+                },
+                "TopicRulePayload": {
+                    "Actions": [
+                        {
+                            "S3": {
+                                "BucketName": {
+                                    "Ref": "DataBucketName"
+                                },
+                                "Key": "data/numeric/${parse_time(\"yyyy/MM/dd/HH\", timestamp())}/${topic()}-${timestamp()}",
+                                "RoleArn": {
+                                    "Ref": "IoTRuleRoleArn"
+                                }
+                            }
+                        },
+                        {
+                            "CloudwatchMetric": {
+                                "MetricName": "${topic()}",
+                                "MetricNamespace": {
+                                    "Fn::Sub": "pi2aws-iot-metrics-${AWS::AccountId}-${QSDeploymentSuffix}"
+                                },
+                                "MetricUnit": "Count",
+                                "MetricValue": "1",
+                                "RoleArn": {
+                                    "Ref": "IoTRuleRoleArn"
+                                }
+                            }
+                        },
+                        {
+                            "CloudwatchMetric": {
+                                "MetricName": "allUpdates",
+                                "MetricNamespace": {
+                                    "Fn::Sub": "pi2aws-iot-metrics-${AWS::AccountId}-${QSDeploymentSuffix}"
+                                },
+                                "MetricUnit": "Count",
+                                "MetricValue": "1",
+                                "RoleArn": {
+                                    "Ref": "IoTRuleRoleArn"
+                                }
+                            }
+                        }
+                    ],
+                    "AwsIotSqlVersion": "2016-03-23",
+                    "RuleDisabled": false,
+                    "Sql": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "SELECT cast(value AS DECIMAL) AS value, name, data_source, timestamp FROM '",
+                                { "Ref": "PiServer" },
+                                "/#' WHERE ISUNDEFINED(CAST(value AS DECIMAL)) <> TRUE"
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
+        "RuleNumericElasticSearch": {
+            "Type": "AWS::IoT::TopicRule",
+            "Properties": {
+                "RuleName": {
+                    "Fn::Sub": "PI2AWSRule_numeric_elasticsearch_${QSDeploymentSuffix}"
+                },
+                "TopicRulePayload": {
+                    "Actions": [
+                        {
+                            "Elasticsearch": {
+                                "Endpoint": {
+                                    "Fn::Sub": "https://${ElasticsearchEndpoint}"
+                                },
+                                "Id": "${newuuid()}",
+                                "Index": "managed_feeds-${parse_time(\"yyyy-MM-dd\", timestamp())}",
+                                "RoleArn": {
+                                    "Ref": "IoTRuleRoleArn"
+                                },
+                                "Type": "ManagedFeedStream"
+                            }
+                        }
+                    ],
+                    "AwsIotSqlVersion": "2016-03-23",
+                    "RuleDisabled": false,
+                    "Sql": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "SELECT cast(value AS DECIMAL) AS value, name, data_source, es_timestamp as timestamp FROM '",
+                                { "Ref": "PiServer" },
+                                "/#' WHERE ISUNDEFINED(CAST(value AS DECIMAL)) <> TRUE"
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
+        "RuleText": {
+            "Type": "AWS::IoT::TopicRule",
+            "Properties": {
+                "RuleName": {
+                    "Fn::Sub": "PI2AWSRule_text_${QSDeploymentSuffix}"
+                },
+                "TopicRulePayload": {
+                    "Actions": [
+                        {
+                            "S3": {
+                                "BucketName": {
+                                    "Ref": "DataBucketName"
+                                },
+                                "Key": "data/text/${parse_time(\"yyyy/MM/dd/HH\", timestamp())}/${topic()}-${timestamp()}",
+                                "RoleArn": {
+                                    "Ref": "IoTRuleRoleArn"
+                                }
+                            }
+                        },
+                        {
+                            "CloudwatchMetric": {
+                                "MetricName": "${topic()}",
+                                "MetricNamespace": {
+                                    "Fn::Sub": "pi2aws-iot-metrics-${AWS::AccountId}-${QSDeploymentSuffix}"
+                                },
+                                "MetricUnit": "Count",
+                                "MetricValue": "1",
+                                "RoleArn": {
+                                    "Ref": "IoTRuleRoleArn"
+                                }
+                            }
+                        },
+                        {
+                            "CloudwatchMetric": {
+                                "MetricName": "allUpdates",
+                                "MetricNamespace": {
+                                    "Fn::Sub": "pi2aws-iot-metrics-${AWS::AccountId}-${QSDeploymentSuffix}"
+                                },
+                                "MetricUnit": "Count",
+                                "MetricValue": "1",
+                                "RoleArn": {
+                                    "Ref": "IoTRuleRoleArn"
+                                }
+                            }
+                        }
+                    ],
+                    "AwsIotSqlVersion": "2016-03-23",
+                    "RuleDisabled": false,
+                    "Sql": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "SELECT * FROM '",
+                                { "Ref": "PiServer" },
+                                "/#' WHERE ISUNDEFINED(CAST(value AS DECIMAL))"
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
+        "RegisterKibanaDashboardIoT": {
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "RegisterKibanaDashboardLambdaIoT",
+                        "Arn"
+                    ]
+                }
+            },
+            "Type": "Custom::RegisterDashboard"
+        },
+        "RegisterKibanaDashboardLambdaIoT": {
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "RegionalLambdaBucketName"
+                    },
+                    "S3Key": "lambda_deployment_package.zip"
+                },
+                "Description": "Register dashboard in Kibana",
+                "Environment": {
+                    "Variables": {
+                        "ELASTICSEARCH_ENDPOINT": {
+                            "Ref": "ElasticsearchEndpoint"
+                        },
+                        "QSS3_BUCKET_NAME": {
+                            "Ref": "QSS3BucketName"
+                        },
+                        "QSS3_KEY_PREFIX": {
+                            "Ref": "QSS3KeyPrefix"
+                        }
+                    }
+                },
+                "Handler": "lambdas.setup_elasticsearch_and_kibana.lambda_handler_iot",
+                "Role": {
+                    "Ref": "RegisterKibanaDashboardRoleARN"
+                },
+                "Runtime": "python3.6",
+                "Timeout": 30
+            },
+            "Type": "AWS::Lambda::Function"
+        }
+    },
+    "Outputs": {
+        "PrivateKey": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "GenerateCSRLambdaCustom",
+                    "PrivateKey"
+                ]
+            }
+        },
+        "IoTCertificateID": {
+            "Value": {
+                "Ref": "IoTCertificate"
+            }
+        }
+    }
+}

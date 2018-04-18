@@ -1,24 +1,18 @@
 import fetch from 'isomorphic-fetch'
-
-import { store } from './index.js'
-
-import { addNotification } from './app/actions.js'
-
+import { console } from 'global'
+import { toast } from 'react-toastify'
 
 const BACKEND_ERROR_CODES = [500];
 const BACKEND_ERROR_MSG_KEYS = ['description', 'exception', 'message', 'traceback']
 
 
 function dispatchDetailedNotification(json) {
-    store.dispatch(
-        addNotification(json, 'danger', true)
-    )
+    toast.error(`Server error: ${json.message}`)
+    console.error(json)
 }
 
 function dispatchInternalServerErrorNotification() {
-    store.dispatch(
-        addNotification('Internal server error', 'danger')
-    )
+    toast.error('Internal server error')
 }
 
 function fetchWithBackendErrorHandling(...args) {
@@ -45,65 +39,50 @@ function fetchWithBackendErrorHandling(...args) {
     });
 }
 
-
-
-function getAfStructure() {
-    return fetchWithBackendErrorHandling('/af-structure/view', {
-        method: 'POST',
-        credentials: 'include'
-    });
-}
-
-function syncAfStructure() {
-    return fetchWithBackendErrorHandling('/af-structure/sync', {
-        method: 'POST',
-        credentials: 'include'
-    });
-}
-
-function subscribeToPiPoint(point) {
-    var array = [point]
-    return subscribeToPiPoints(array);
-}
-
-function subscribeToAllPiPoints() {
-    return postJSON('pi-point/subscribe/all');
-}
-
-function subscribeToPiPoints(arrayOfPoints, all = false) {
-    return postJSON('/pi-point/subscribe', arrayOfPoints);
-}
-
-function unsubscribeFromPiPoint(point) {
-    var array = [point]
-    return unsubscribeFromPiPoints(array);
-}
-
-function unsubscribeFromPiPoints(arrayOfPoints) {
-    return postJSON('/pi-point/unsubscribe', arrayOfPoints);
-}
-
-function unsubscribeFromAllPiPoints() {
-    return postJSON('/pi-point/unsubscribe/all');
-}
-
-function sendBackfillRequest(backfill) {
-    return postJSON('/backfill', backfill);
-}
-
-function getSubscribedFeeds() {
-    return fetchWithBackendErrorHandling('/pi-point/get-subscribed', {
+function getSettings() {
+    return fetchWithBackendErrorHandling('/settings', {
         method: 'GET',
         credentials: 'include'
-    }).then(
-        response => {
-            if (!response.ok) {
-                store.dispatch(addNotification('Server error, please try again', 'danger'));
-                throw new Error('Server error');
-            } else {
-                return response.json();
-            }
+    }).then(response => response.json());
+}
+
+function saveSettings(settings) {
+    return postJSON('/settings/save', settings);
+}
+
+function syncStructure() {
+    return fetchWithBackendErrorHandling('/structure/sync', {
+        method: 'POST',
+        credentials: 'include'
     });
+}
+
+function subscribeToFeeds(payload) {
+    return postJSON('/subscribe', payload).then(
+        () => toast.success('Subsription request sent'),
+        () => toast.error('Cannot send subscription request')
+    );
+}
+
+function interpolateFeeds(payload) {
+    return postJSON('/interpolate', payload).then(
+        () => toast.success('Interpolation request sent'),
+        () => toast.error('Cannot send inteprolation request')
+    );
+}
+
+function backfillFeeds(payload) {
+    return postJSON('/backfill', payload).then(
+        () => toast.success('Backfill request sent'),
+        () => toast.error('Cannot send backfill request')
+    );
+}
+
+function unsubscribeFromFeeds(payload) {
+    return postJSON('/unsubscribe', payload).then(
+        () => toast.success('Unsubsribe request sent'),
+        () => toast.error('Cannot send unsubscribe request')
+    );
 }
 
 function getRecentEvents(limit) {
@@ -111,35 +90,75 @@ function getRecentEvents(limit) {
 }
 
 function sendForm(url, formJsonData, successMessage, failureMessage) {
+    const toastId = toast.warning('Your request is being processed, please wait', {autoClose: false});
+
     return postJSON(url, formJsonData).then(
         response => {
             if (!response.ok) {
-                store.dispatch(addNotification(failureMessage, 'danger'));
+                toast.update(toastId, {
+                    render: failureMessage,
+                    type: toast.TYPE.ERROR,
+                    autoClose: 8000
+                });
                 throw new Error('Request failed');
             } else {
-                store.dispatch(addNotification(successMessage, 'info'));
+                toast.update(toastId, {
+                    render: successMessage,
+                    type: toast.TYPE.SUCCESS,
+                    autoClose: 8000
+                });
             }
         }
     );
 }
 
-function searchAfStructure(searchJson) {
-    return postJSON('/af-structure/search', searchJson).then(response => {
-        return response.json();
-    });
-}
-
-function getPiPointsList() {
-    return get('/pi-point/list').then(response => {
+function getAssetChildren(parentAssetId) {
+    return postJSON('/structure/asset-children', {parentAssetId}).then(response => {
         return response.json();
     })
 }
 
-function syncPiPointsList() {
-    return fetchWithBackendErrorHandling('/pi-point/sync', {
+function searchAssets(filters = [], page, pageSize) {
+    return postJSON('/structure/search', {filters, page: page-1, pageSize}).then(response => {
+        return response.json();
+    })
+}
+
+function getAssetAttributes(assetId, filters = []) {
+    return postJSON('/structure/asset-attributes', {assetId, filters}).then(response => {
+        return response.json();
+    })
+}
+
+function searchFeedsList(page = 0, pageSize = 10, status = undefined, pattern = undefined, useRegex = false) {
+    const payload = {
+        page,
+        page_size: pageSize,
+        status,
+        query: pattern,
+        useRegex
+    }
+    return postJSON('/feeds/search', payload).then(response => {
+        return response.json();
+    })
+}
+
+function syncFeedsList() {
+    return fetchWithBackendErrorHandling('/feeds/sync', {
         method: 'POST',
         credentials: 'include'
     });
+}
+
+function setSchedulerRule(ruleType, cron) {
+    const url = `/scheduler/${ruleType}`;
+    return postJSON(url, {cron});
+}
+
+function getSchedulerRules() {
+    return get('/scheduler/rules').then(response => {
+        return response.json();
+    })
 }
 
 function get(url) {
@@ -149,7 +168,7 @@ function get(url) {
         headers: {
             "Content-type": "application/json; charset=UTF-8"
         }
-    }).catch(err => console.log(err))
+    }).catch(err => console.error(err))
 
 }
 
@@ -170,25 +189,11 @@ function checkIfLoggedIn() {
     });
 }
 
-function logout(username, password) {
+function logout() {
     return fetchWithBackendErrorHandling('/logout', {
         method: 'POST',
         credentials: 'include',
     });
-}
-
-function getRules() {
-    return fetchWithBackendErrorHandling('/scheduler/rules', {
-        method: 'GET',
-        credentials: 'include',
-    }).then(response => response.json());
-}
-
-function getRule(ruleName) {
-    return fetchWithBackendErrorHandling('/scheduler/rule/' + ruleName, {
-        method: 'GET',
-        credentials: 'include',
-    }).then(response => response.json());
 }
 
 function getAthenaInfo() {
@@ -210,27 +215,26 @@ function login(username, password) {
 
 
 const Client = {
-    getAfStructure,
-    syncAfStructure,
-    subscribeToPiPoint,
-    subscribeToPiPoints,
+    syncStructure,
+    subscribeToFeeds,
     login,
     logout,
     sendForm,
-    getSubscribedFeeds,
-    sendBackfillRequest,
-    searchAfStructure,
-    getPiPointsList,
-    unsubscribeFromPiPoint,
-    unsubscribeFromPiPoints,
+    unsubscribeFromFeeds,
     getRecentEvents,
     checkIfLoggedIn,
-    getRules,
-    getRule,
-    syncPiPointsList,
+    syncFeedsList,
     getAthenaInfo,
-    unsubscribeFromAllPiPoints,
-    subscribeToAllPiPoints
+    searchFeedsList,
+    getAssetChildren,
+    getSettings,
+    saveSettings,
+    searchAssets,
+    getAssetAttributes,
+    getSchedulerRules,
+    setSchedulerRule,
+    interpolateFeeds,
+    backfillFeeds
 };
 
 export default Client;

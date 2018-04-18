@@ -27,15 +27,15 @@
             "Description": "Athena database name with table with managed feeds",
             "Type": "String"
         },
-        "AthenaTableName": {
-            "Description": "Athena table name with managed feeds",
+        "AthenaNumericTableName": {
+            "Description": "Athena table name with numeric managed feeds",
+            "Type": "String"
+        },
+        "AthenaTextTableName": {
+            "Description": "Athena table name with text managed feeds",
             "Type": "String"
         },
         "CuratedDatasetsBucketName": {
-            "Type": "String"
-        },
-        "EventsStatusTableName": {
-            "Description": "Table name for DynamoDB database which holds state of point updates",
             "Type": "String"
         },
         "IncomingQueueName": {
@@ -74,10 +74,6 @@
             "Description": "Number or web server instances in Auto scaling group",
             "Type": "Number"
         },
-        "PiPointsTableName": {
-            "Description": "PI points table name",
-            "Type": "String"
-        },
         "PrivateSubnet1ID": {
             "Description": "Management Console subnet 1",
             "Type": "AWS::EC2::Subnet::Id"
@@ -109,7 +105,7 @@
         "QSS3BucketName": {
             "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
             "ConstraintDescription": "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
-            "Default": "aws-quickstart",
+            "Default": "quickstart-reference",
             "Description": "S3 bucket where the templates and scripts are installed. Use this parameter to specify the S3 bucket name you've created for your copy of Quick Start assets, if you decide to customize or extend the Quick Start for your own use. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens, but should not start or end with a hyphen.",
             "Type": "String"
         },
@@ -127,21 +123,34 @@
         "VpcId": {
             "Description": "Management Console server VPC",
             "Type": "AWS::EC2::VPC::Id"
+        },
+        "RDSUri": {
+            "Description": "RDS connection uri",
+            "Type": "String",
+            "NoEcho": "true"
+        },
+        "AfSynchronizationLambdaARN": {
+            "Description": "ARN of AF Synchronization Lambda",
+            "Type": "String"
+        },
+        "PiPointsSynchronizationLambdaARN": {
+            "Description": "ARN of Pi Points Synchronization Lambda",
+            "Type": "String"
         }
     },
     "Mappings": {
         "AWSAMIRegionMap": {
             "AMI": {
-                "AMZNLINUXHVM": "amzn-ami-hvm-2017.09.1.20180307-x86_64-gp2"
+                "AMZNLINUXHVM": "amzn-ami-hvm-2017.09.1.20180115-x86_64-gp2"
             },
             "eu-west-1": {
-                "AMZNLINUXHVM": "ami-3bfab942"
+                "AMZNLINUXHVM": "ami-d834aba1"
             },
             "us-east-1": {
-                "AMZNLINUXHVM": "ami-1853ac65"
+                "AMZNLINUXHVM": "ami-97785bed"
             },
             "us-west-2": {
-                "AMZNLINUXHVM": "ami-d874e0a0"
+                "AMZNLINUXHVM": "ami-f2d3638a"
             }
         }
     },
@@ -289,9 +298,6 @@
                                     "Fn::Join": [
                                         "\n",
                                         [
-                                            "# Install npm",
-                                            "curl --silent --location https://rpm.nodesource.com/setup_8.x | bash -",
-                                            "yum -y install nodejs",
                                             "# Download files from S3",
                                             "cd /home/ec2-user",
                                             {
@@ -299,10 +305,6 @@
                                             },
                                             "unzip assets.zip",
                                             "rm assets.zip",
-                                            "# Install dependencies and build webapp",
-                                            "cd /home/ec2-user/assets/webapp_management_console/app",
-                                            "npm install",
-                                            "npm run build",
                                             "# Install Python requirements",
                                             "cd /home/ec2-user/assets",
                                             "pip-3.5 install -r /home/ec2-user/assets/webapp_management_console/webapp-requirements.txt",
@@ -323,6 +325,9 @@
                                             "[general]",
                                             {
                                                 "Fn::Sub": "region=${AWS::Region}"
+                                            },
+                                            {
+                                                "Fn::Sub": "account_id=${AWS::AccountId}"
                                             },
                                             "[webapp]",
                                             "port=4000",
@@ -346,16 +351,22 @@
                                                 "Fn::Sub": "af_structure_database=${AfStructureDatabase}"
                                             },
                                             {
-                                                "Fn::Sub": "pi_points_table_name=${PiPointsTableName}"
+                                                "Fn::Sub": "athena_numeric_table_name=${AthenaNumericTableName}"
                                             },
                                             {
-                                                "Fn::Sub": "events_status_table_name=${EventsStatusTableName}"
-                                            },
-                                            {
-                                                "Fn::Sub": "athena_table_name=${AthenaTableName}"
+                                                "Fn::Sub": "athena_text_table_name=${AthenaTextTableName}"
                                             },
                                             {
                                                 "Fn::Sub": "athena_database_name=${AthenaDatabaseName}"
+                                            },
+                                            {
+                                                "Fn::Sub": "postgres_uri=${RDSUri}"
+                                            },
+                                            {
+                                                "Fn::Sub": "af_sync_lambda_arn=${AfSynchronizationLambdaARN}"
+                                            },
+                                            {
+                                                "Fn::Sub": "pi_points_sync_lambda_arn=${PiPointsSynchronizationLambdaARN}"
                                             },
                                             "s3_rule_bucket_key_prefix=rules"
                                         ]

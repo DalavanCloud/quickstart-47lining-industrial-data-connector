@@ -1,3 +1,6 @@
 configparser==3.5.0
 flask==0.12.2
 boto3==1.4.6
+SQLAlchemy==1.2.0b3
+psycopg2==2.7.3.2
+flask-sqlalchemy==2.3.2

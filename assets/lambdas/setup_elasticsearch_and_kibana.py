@@ -5,11 +5,17 @@ import boto3
 
 from lambdas.utils import send_cfnresponse, make_elasticsearch_client
 
-KIBANA_ASSETS_PATH = 'assets/kibana/managed-feeds-visualizations.json'
-KIBANA_INDICES = [
+KIBANA_ASSETS_PATH_KINESIS = 'assets/kibana/managed-feeds-visualizations-kinesis.json'
+KIBANA_ASSETS_PATH_IOT = 'assets/kibana/managed-feeds-visualizations-iot.json'
+
+KIBANA_INDICES_KINESIS = [
     {'name': 'managed_feeds*', 'is_default': True},
     {'name': 'updates_per_managed_feed'},
     {'name': 'updates_per_second'}
+]
+
+KIBANA_INDICES_IOT = [
+    {'name': 'managed_feeds*', 'is_default': True}
 ]
 
 ES_INDICES_TMPL = [
@@ -24,20 +30,33 @@ ES_INDICES_TMPL = [
 ]
 
 @send_cfnresponse
-def lambda_handler(event, context):
+def lambda_handler_kinesis(event, context):
     s3_resource = boto3.resource('s3')
     es_client = make_elasticsearch_client(os.environ['ELASTICSEARCH_ENDPOINT'])
-    kibana_visualization = _get_kibana_visualization(s3_resource)
+    kibana_visualization = _get_kibana_visualization(s3_resource, KIBANA_ASSETS_PATH_KINESIS)
 
     if event['RequestType'] == 'Create':
         _register_index_templates(es_client, ES_INDICES_TMPL)
-        _register_indices(es_client, KIBANA_INDICES)
+        _register_indices(es_client, KIBANA_INDICES_KINESIS)
         _register_visuals(es_client, kibana_visualization)
 
 
-def _get_kibana_visualization(s3_resource):
+@send_cfnresponse
+def lambda_handler_iot(event, context):
+    s3_resource = boto3.resource('s3')
+    es_client = make_elasticsearch_client(os.environ['ELASTICSEARCH_ENDPOINT'])
+    kibana_visualization = _get_kibana_visualization(s3_resource, KIBANA_ASSETS_PATH_IOT)
+
+    if event['RequestType'] == 'Create':
+        _register_index_templates(es_client, ES_INDICES_TMPL)
+        _register_indices(es_client, KIBANA_INDICES_IOT)
+        _register_visuals(es_client, kibana_visualization)
+
+
+
+def _get_kibana_visualization(s3_resource, kibana_assets_path):
     qs_s3_bucket, qs_s3_key_prefix = os.environ['QSS3_BUCKET_NAME'], os.environ['QSS3_KEY_PREFIX']
-    kibana_export_key = os.path.join(qs_s3_key_prefix, KIBANA_ASSETS_PATH)
+    kibana_export_key = os.path.join(qs_s3_key_prefix, kibana_assets_path)
 
     kibana_visualization = s3_resource.Object(qs_s3_bucket, kibana_export_key).get()['Body'].read().decode()
     return json.loads(kibana_visualization)

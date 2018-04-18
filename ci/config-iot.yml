@@ -1,0 +1,15 @@
+global:
+  marketplace-ami: false
+  owner: quickstart@amazon.com
+  qsname: quickstart-osisoft
+  regions:
+#    - us-east-1
+#    - us-west-2
+    - eu-west-1
+  reporting: true
+tests:
+  test-iot:
+    parameter_input: connector-test-iot.json
+    template_file: pi2aws-master.template
+    regions:
+      - eu-west-1

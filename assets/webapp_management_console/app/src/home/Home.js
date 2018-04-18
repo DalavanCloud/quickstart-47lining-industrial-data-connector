@@ -1,16 +1,31 @@
-import React from 'react';
-import { Grid, Col, Jumbotron } from 'react-bootstrap';
+import React from 'react'
+import { Link } from 'react-router-dom'
+
+import logo from '../resources/images/Logo_color.png'
+import { StructureIcon } from '../common/icons.js'
 
 
 function Home() {
     return (
-        <Grid>
-            <Col sm={6} smOffset={3}>
-                <Jumbotron>
-                    <h2>Welcome to OSIsoft PI System to AWS Connector Management Console</h2>
-                </Jumbotron>
-            </Col>
-        </Grid>
+        <div className="sub">
+            <div className="form-box">
+                <div className="text-center branding">
+                    <img style={{width: '390px'}} src={logo} alt="logo" />
+                </div>
+                <form className="form-content">
+                    <div className="text">
+                        <p>Welcome to</p>
+                        <h2>AWS Industrial Time Series Data Connector</h2>
+                        <p>Management Console</p>
+                    </div>
+                    <Link to="/structure">
+                        <button className="btn btn-primary console-btn" type="submit">
+                            <StructureIcon /> <span>GO TO STRUCTURE</span>
+                        </button>
+                    </Link>
+                </form>
+            </div>
+        </div>
     );
 }
 

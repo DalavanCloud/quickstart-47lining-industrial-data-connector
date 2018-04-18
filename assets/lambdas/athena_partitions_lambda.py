@@ -7,6 +7,7 @@ import datetime
 from lambdas.utils import wait_for_athena_query_completion
 
 PARTITION_REGEX = '(\d{4}/\d{2}/\d{2})'
+MARKERS_PREFIX = os.environ['MARKERS_S3_PATH']
 
 
 def extract_partition_path(file_key):
@@ -59,20 +60,31 @@ def register_partition(partition_path, partition_name):
     response = client.start_query_execution(**query_config)
     query_execution_id = response['QueryExecutionId']
     wait_for_athena_query_completion(client, query_execution_id)
+    create_marker(partition_name)
 
 
-def is_partition_registered(partition_path):
-    firehose_data_prefix = os.environ['FIREHOSE_DATA_PREFIX']
-    partition_key = os.path.join(firehose_data_prefix, partition_path)
+def create_marker(partition_name):
+    s3 = boto3.client('s3')
+    marker_key = os.path.join(MARKERS_PREFIX, "marker-" + partition_name)
+    s3.put_object(
+        Bucket=os.environ['FIREHOSE_DATA_BUCKET_NAME'],
+        Key=marker_key
+    )
+
+
+def is_partition_registered(partition_name):
     s3_resource = boto3.resource('s3')
     data_bucket = s3_resource.Bucket(os.environ['FIREHOSE_DATA_BUCKET_NAME'])
-    return len(list(data_bucket.objects.filter(Prefix=partition_key).limit(2))) == 2
+    markers_prefix = os.path.join(MARKERS_PREFIX, "marker-" + partition_name)
+    markers = list(data_bucket.objects.filter(Prefix=markers_prefix))
+    return len(markers) > 0 and markers[0].key == markers_prefix
+
 
 
 def lambda_handler(event, context):
     file_key = event['Records'][0]['s3']['object']['key']
     partition_path = extract_partition_path(file_key)
     partition_name = partition_path.replace('/', '-')
-    if not is_partition_registered(partition_path):
+    if not is_partition_registered(partition_name):
         print('Registering partition {}'.format(partition_name))
         register_partition(partition_path, partition_name)

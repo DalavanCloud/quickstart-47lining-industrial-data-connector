@@ -6,7 +6,7 @@
             "Type": "String"
         },
         "QSS3BucketName": {
-            "Default": "aws-quickstart",
+            "Default": "quickstart-reference",
             "Type": "String"
         },
         "QSS3KeyPrefix": {

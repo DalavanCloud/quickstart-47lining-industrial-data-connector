@@ -4,6 +4,9 @@ import time
 
 from aws_requests_auth.aws_auth import AWSRequestsAuth
 from elasticsearch import Elasticsearch, RequestsHttpConnection
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 
 from lambdas import cfnresponse
 from workers.managed_feeds.managed_feeds_manager import ManagedFeedsManager
@@ -13,16 +16,6 @@ log = logging.getLogger(__name__)
 
 class AthenaQueryError(Exception):
     pass
-
-
-def create_managed_feeds_manager_for_periodic_lambda():
-    aws_region = os.environ['AWS_REGION']
-    pi_points_table_name = os.environ['PI_POINTS_TABLENAME']
-    events_status_table_name = os.environ['EVENTS_STATUS_TABLENAME']
-    incoming_queue_name = os.environ['SQS_IN_QUEUE_NAME']
-
-    return ManagedFeedsManager.create_manager(aws_region, pi_points_table_name, events_status_table_name,
-                                              incoming_queue_name)
 
 
 def wait_for_athena_query_completion(athena_client, query_execution_id, timeout=20):
@@ -67,3 +60,13 @@ def make_elasticsearch_client(elasticsearch_endpoint):
         connection_class=RequestsHttpConnection,
         http_auth=awsauth
     )
+
+
+def create_managed_feeds_manager_for_periodic_lambda():
+    aws_region = os.environ['AWS_REGION']
+    incoming_queue_name = os.environ['SQS_IN_QUEUE_NAME']
+    engine = create_engine(os.environ['POSTGRES_URI'])
+
+    Session = sessionmaker(bind=engine)
+
+    return ManagedFeedsManager.create_manager(aws_region, Session(), incoming_queue_name)

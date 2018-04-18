@@ -8,9 +8,11 @@ import { Provider } from 'react-redux'
 import reducer from './app/reducers.js'
 
 import './index.css'
-import './bootstrap/css/bootstrap.css'
 import App from './app/App'
-import registerServiceWorker from './registerServiceWorker'
+
+import './resources/styles/bootstrap.min.css'
+import './resources/styles/bootstrap-xl.css'
+import './resources/styles/main.css'
 
 
 const middlewares = []
@@ -23,10 +25,9 @@ middlewares.push(thunkMiddleware); // lets us dispatch() functions
 
 const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
 export const store = createStore(reducer,  composeEnhancers(
-        applyMiddleware(...middlewares)
-    )
+    applyMiddleware(...middlewares)
 )
-
+)
 
 ReactDOM.render(
     <Provider store={store}>
@@ -34,5 +35,3 @@ ReactDOM.render(
     </Provider>,
     document.getElementById('root')
 );
-
-registerServiceWorker();

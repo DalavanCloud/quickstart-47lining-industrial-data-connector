@@ -17,3 +17,12 @@ services:
         image: lphoward/fake-s3
         ports:
             - "4569:4569"
+
+    postgres:
+        image: postgres:9.6.6
+        ports:
+            - "5432:5432"
+        command: "-c 'log_statement=all'"
+        environment:
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_USER: postgres

@@ -1,8 +1,8 @@
-import { SET_NUMBER_OF_RECENT_EVENTS_DAYS, SET_RECENT_EVENTS } from './EventsLogActions.js'
+import { SET_NUMBER_OF_RECENT_EVENTS, SET_RECENT_EVENTS } from './EventsLogActions.js'
 
-export function numberOfRecentEventsDays(state = 1, action) {
+export function numberOfRecentEvents(state = 10, action) {
     switch (action.type) {
-        case SET_NUMBER_OF_RECENT_EVENTS_DAYS:
+        case SET_NUMBER_OF_RECENT_EVENTS:
             return action.number
         default:
             return state
