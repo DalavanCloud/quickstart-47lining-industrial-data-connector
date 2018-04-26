@@ -128,7 +128,7 @@
                     "S3Key": "lambda_deployment_package.zip"
                 },
                 "Description": "Create tables",
-                "Handler": "lambdas.setup_database_lambda.lambda_handler",
+                "Handler": "source.setup_database_lambda.lambda_handler",
                 "Role": {
                     "Ref": "CreateTablesLambdaRoleARN"
                 },

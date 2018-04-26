@@ -34,7 +34,7 @@
                     "S3Key": "lambda_deployment_package.zip"
                 },
                 "Description": "Copy licenced binary files to the regional bucket",
-                "Handler": "lambdas.copy_licenced_binary_lambda.handler",
+                "Handler": "source.copy_licenced_binary_lambda.handler",
                 "Role": {
                     "Ref": "CopyLicencedBinaryLambdaRoleARN"
                 },

@@ -84,7 +84,7 @@
                         }
                     }
                 },
-                "Handler": "lambdas.create_athena_table_lambda.lambda_handler",
+                "Handler": "source.create_athena_table_lambda.lambda_handler",
                 "Role": {
                     "Ref": "AthenaTableLambdaRoleARN"
                 },
@@ -420,7 +420,7 @@
                         "MARKERS_S3_PATH": "athena_markers/numeric"
                     }
                 },
-                "Handler": "lambdas.athena_partitions_lambda.lambda_handler",
+                "Handler": "source.athena_partitions_lambda.lambda_handler",
                 "Role": {
                     "Ref": "AthenaTablePartitionLambdaRoleARN"
                 },
@@ -514,7 +514,7 @@
                         "MARKERS_S3_PATH": "athena_markers/text"
                     }
                 },
-                "Handler": "lambdas.athena_partitions_lambda.lambda_handler",
+                "Handler": "source.athena_partitions_lambda.lambda_handler",
                 "Role": {
                     "Ref": "AthenaTablePartitionLambdaRoleARN"
                 },

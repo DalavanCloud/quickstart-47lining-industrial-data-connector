@@ -1,6 +1,6 @@
 {
     "AWSTemplateFormatVersion": "2010-09-09",
-    "Description": "Lambdas for performing generic periodic actions",
+    "Description": "Lambdas for performing generic periodic actions: Managed Feeds synchronization and Structure synchronization",
     "Parameters": {
         "QSS3BucketName": {
             "Description": "S3 bucket name for the repository. Repository bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
@@ -75,7 +75,7 @@
                         }
                     }
                 },
-                "Handler": "lambdas.af_sync_lambda.af_sync_handler",
+                "Handler": "source.af_sync_lambda.af_sync_handler",
                 "Role": {
                     "Ref": "GenericPeriodicLambdaRoleARN"
                 },
@@ -118,7 +118,7 @@
                         }
                     }
                 },
-                "Handler": "lambdas.pi_points_sync_lambda.pi_points_sync_handler",
+                "Handler": "source.pi_points_sync_lambda.pi_points_sync_handler",
                 "Role": {
                     "Ref": "GenericPeriodicLambdaRoleARN"
                 },

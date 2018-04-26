@@ -1,10 +1,10 @@
 global:
   marketplace-ami: false
   owner: quickstart@amazon.com
-  qsname: quickstart-osisoft
+  qsname: aws-industrial-time-series-data-connector
   regions:
-#    - us-east-1
-#    - us-west-2
+    - us-east-1
+    - us-west-2
     - eu-west-1
   reporting: true
 tests:
@@ -12,4 +12,6 @@ tests:
     parameter_input: connector-test-iot.json
     template_file: pi2aws-master.template
     regions:
+      - us-east-1
+      - us-west-2
       - eu-west-1

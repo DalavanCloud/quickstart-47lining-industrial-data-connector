@@ -3,7 +3,7 @@
 REPO_DIR=`pwd`
 TMP_VENV_DIR=`mktemp -d`
 LAMBDA_ZIP_NAME=lambda_deployment_package.zip
-LAMBDA_ZIP_PATH=${REPO_DIR}/assets/lambdas/${LAMBDA_ZIP_NAME}
+LAMBDA_ZIP_PATH=${REPO_DIR}/functions/packages/${LAMBDA_ZIP_NAME}
 ASSETS_ZIP_NAME=assets.zip
 ASSETS_ZIP_PATH=${REPO_DIR}/assets/assets.zip
 PIP_PACKAGES_DIR_NAME=pip-packages
@@ -24,7 +24,7 @@ cd ${TMP_VENV_DIR}
 virtualenv -p python3.6 venv
 (
     source venv/bin/activate
-    pip install -t ${PIP_PACKAGES_DIR_NAME} -r ${REPO_DIR}/assets/lambdas/requirements.txt
+    pip install -t ${PIP_PACKAGES_DIR_NAME} -r ${REPO_DIR}/functions/source/requirements.txt
 )
 cd ${PIP_PACKAGES_DIR_NAME}
 ls -l
@@ -43,10 +43,12 @@ echo "Update lambda deployment package"
 cd ${REPO_DIR}/assets
 zip ${LAMBDA_ZIP_PATH} -r service -x '*__pycache__/*' '*.pyc'
 zip ${LAMBDA_ZIP_PATH} -r workers -x '*__pycache__/*' '*.pyc'
-zip ${LAMBDA_ZIP_PATH} -r lambdas -x '*__pycache__/*' '*.pyc' 'lambdas/requirements.txt'
 zip ${LAMBDA_ZIP_PATH} -r utils   -x '*__pycache__/*' '*.pyc' 'utils/piaf*'
 zip ${LAMBDA_ZIP_PATH} -r model   -x '*__pycache__/*' '*.pyc'
 zip ${LAMBDA_ZIP_PATH} -r scheduling_manager   -x '*__pycache__/*' '*.pyc'
+
+cd ${REPO_DIR}/functions
+zip ${LAMBDA_ZIP_PATH} -r source -x '*__pycache__/*' '*.pyc' 'source/requirements.txt'
 
 echo "Create assets archive"
 cd ${REPO_DIR}

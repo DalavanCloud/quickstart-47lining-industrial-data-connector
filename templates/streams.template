@@ -41,14 +41,14 @@
         "QSS3BucketName": {
             "AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$",
             "ConstraintDescription": "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
-            "Default": "quickstart-reference",
+            "Default": "aws-quickstart",
             "Description": "S3 bucket where the templates and scripts are installed. Use this parameter to specify the S3 bucket name you've created for your copy of Quick Start assets, if you decide to customize or extend the Quick Start for your own use. The bucket name can include numbers, lowercase letters, uppercase letters, and hyphens, but should not start or end with a hyphen.",
             "Type": "String"
         },
         "QSS3KeyPrefix": {
             "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
             "ConstraintDescription": "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
-            "Default": "osisoft/47lining/latest/",
+            "Default": "quickstart-osisoft-pisystem2aws-connector/",
             "Description": "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
             "Type": "String"
         },
@@ -224,7 +224,7 @@
                         }
                     }
                 },
-                "Handler": "lambdas.create_kinesis_app_lambda.lambda_handler",
+                "Handler": "source.create_kinesis_app_lambda.lambda_handler",
                 "Role": {
                     "Ref": "KinesisAnalyticsLambdaRoleARN"
                 },
@@ -427,7 +427,7 @@
                         }
                     }
                 },
-                "Handler": "lambdas.setup_elasticsearch_and_kibana.lambda_handler_kinesis",
+                "Handler": "source.setup_elasticsearch_and_kibana.lambda_handler_kinesis",
                 "Role": {
                     "Ref": "RegisterKibanaDashboardRoleARN"
                 },
