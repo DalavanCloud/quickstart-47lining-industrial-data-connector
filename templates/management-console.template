@@ -132,16 +132,16 @@
     "Mappings": {
         "AWSAMIRegionMap": {
             "AMI": {
-                "AMZNLINUXHVM": "amzn-ami-hvm-2017.09.1.20180307-x86_64-gp2"
+                "AMZNLINUXHVM": "amzn-ami-hvm-2018.03.0.20180412-x86_64-gp2"
             },
             "eu-west-1": {
-                "AMZNLINUXHVM": "ami-3bfab942"
+                "AMZNLINUXHVM": "ami-9cbe9be5"
             },
             "us-east-1": {
-                "AMZNLINUXHVM": "ami-1853ac65"
+                "AMZNLINUXHVM": "ami-467ca739"
             },
             "us-west-2": {
-                "AMZNLINUXHVM": "ami-d874e0a0"
+                "AMZNLINUXHVM": "ami-6b8cef13"
             }
         }
     },
