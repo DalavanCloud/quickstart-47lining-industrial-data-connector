@@ -145,7 +145,7 @@
             },
             "us-east-1": {
                 "AMZNLINUXHVM": "ami-467ca739"
-            }
+            },
             "us-east-2": {
                 "AMZNLINUXHVM": "ami-f63b1193"
             },
