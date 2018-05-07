@@ -60,7 +60,7 @@
             "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
             "Default": "qs",
             "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
-            "MaxLength": 7,
+            "MaxLength": 12,
             "MinLength": 1,
             "Type": "String"
         },
@@ -97,16 +97,37 @@
     "Mappings": {
         "AWSAMIRegionMap": {
             "AMI": {
-                "AMZNLINUXHVM": "amzn-ami-hvm-2017.09.1.20180115-x86_64-gp2"
-            },
-            "eu-west-1": {
-                "AMZNLINUXHVM": "ami-d834aba1"
+                "AMZNLINUXHVM": "amzn-ami-hvm-2018.03.0.20180412-x86_64-gp2"
             },
             "us-east-1": {
-                "AMZNLINUXHVM": "ami-97785bed"
+                "AMZNLINUXHVM": "ami-467ca739"
+            },
+            "us-east-2": {
+                "AMZNLINUXHVM": "ami-f63b1193"
             },
             "us-west-2": {
-                "AMZNLINUXHVM": "ami-f2d3638a"
+                "AMZNLINUXHVM": "ami-6b8cef13"
+            },
+            "eu-central-1": {
+                "AMZNLINUXHVM": "ami-5652ce39"
+            },
+            "eu-west-1": {
+                "AMZNLINUXHVM": "ami-9cbe9be5"
+            },
+            "eu-west-2": {
+                "AMZNLINUXHVM": "ami-403e2524"
+            },
+            "ap-southeast-1": {
+                "AMZNLINUXHVM": "ami-68097514"
+            },
+            "ap-southeast-2": {
+                "AMZNLINUXHVM": "ami-942dd1f6"
+            },
+            "ap-northeast-1": {
+                "AMZNLINUXHVM": "ami-ceafcba8"
+            },
+            "ap-northeast-2": {
+                "AMZNLINUXHVM": "ami-863090e8"
             }
         }
     },

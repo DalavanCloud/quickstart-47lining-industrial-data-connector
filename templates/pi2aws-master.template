@@ -559,7 +559,7 @@
             "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
             "Default": "qs",
             "Description": "You can deploy this Quick Start multiple times in the same AWS Region if you provide a different suffix with each launch. This suffix is added to resource names to make them unique for each deployment. Use this parameter to support the deployment of production and test environments in the same AWS Region and in the same AWS account. The suffix is a 1-7 character string that contains numbers and lowercase letters.",
-            "MaxLength": 7,
+            "MaxLength": 12,
             "MinLength": 1,
             "Type": "String"
         },

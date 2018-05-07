@@ -38,7 +38,7 @@
             "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
             "Default": "qs",
             "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
-            "MaxLength": 7,
+            "MaxLength": 12,
             "MinLength": 1,
             "Type": "String"
         },
@@ -49,7 +49,7 @@
     "Mappings": {
         "Constants": {
             "Buckets": {
-                "CuratedDatasetsNamePrefix": "datalake-curated-datasets-pi2aws",
+                "CuratedDatasetsNamePrefix": "dl-curated-datasets",
                 "AthenaResultBucketNamePrefix": "athena-pi2aws-query-results",
                 "CuratedDatasetsDataPath": "data/",
                 "CuratedDatasetsNumericDataPath": "data/numeric/",

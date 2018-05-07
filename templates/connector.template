@@ -146,7 +146,7 @@
             "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
             "Default": "qs",
             "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
-            "MaxLength": 7,
+            "MaxLength": 12,
             "MinLength": 1,
             "Type": "String"
         },
@@ -196,11 +196,32 @@
             "us-east-1": {
                 "WS2016": "ami-08910872"
             },
+            "us-east-2": {
+                "WS2016": "ami-21587144"
+            },
             "us-west-2": {
                 "WS2016": "ami-f6d8008e"
             },
+            "eu-central-1": {
+                "WS2016": "ami-da9b14b5"
+            },
             "eu-west-1": {
                 "WS2016": "ami-e055e899"
+            },
+            "eu-west-2": {
+                "WS2016": "ami-78657b1c"
+            },
+            "ap-southeast-1": {
+                "WS2016": "ami-870855e4"
+            },
+            "ap-southeast-2": {
+                "WS2016": "ami-de5eabbc"
+            },
+            "ap-northeast-1": {
+                "WS2016": "ami-ec279c8a"
+            },
+            "ap-northeast-2": {
+                "WS2016": "ami-e8ef4986"
             }
         }
     },
