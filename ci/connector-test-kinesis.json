@@ -29,7 +29,7 @@
   },
   {
       "ParameterKey": "KeyName",
-      "ParameterValue": "ci-key"
+      "ParameterValue": "$[alfred_getkeypair]"
   },
   {
       "ParameterKey": "VPCDefinition",
@@ -174,13 +174,5 @@
   {
       "ParameterKey": "RDSUsername",
       "ParameterValue": "rdsuser"
-  },
-  {
-      "ParameterKey": "QSS3BucketName",
-      "ParameterValue": "osisoft-ireland-syncing-bucket"
-  },
-  {
-      "ParameterKey": "QSS3KeyPrefix",
-      "ParameterValue": "osisoft-amadeusz/qs-release/"
   }
 ]

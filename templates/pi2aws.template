@@ -417,7 +417,7 @@
         "ConnectorAgentAssetsS3KeyPrefix": {
             "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
             "ConstraintDescription": "The S3 key name prefix to where Connector Agent sources are installed. This prefix can include numbers, lowercase letters, uppercase letters, hyphens, and forward slashes.",
-            "Default": "osisoft/agent/v1/",
+            "Default": "osisoft/agent/v2/",
             "Description": "The S3 key name prefix to where Connector Agent sources are installed. This prefix can include numbers, lowercase letters, uppercase letters, hyphens, and forward slashes.",
             "Type": "String"
         },
