@@ -9,7 +9,7 @@
             "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
             "AllowedPattern": "[a-z0-9]+",
             "MinLength": 1,
-            "MaxLength": 7
+            "MaxLength": 12
         }
     },
     "Resources": {
@@ -20,7 +20,7 @@
                     "Fn::Join": [
                         "-",
                         [
-                            "datalake-published-data-pi2aws",
+                            "dl-published-data",
                             {
                                 "Ref": "AWS::AccountId"
                             },
@@ -67,7 +67,7 @@
                     "Fn::Join": [
                         "-",
                         [
-                            "datalake-submissions-pi2aws",
+                            "dl-submissions",
                             {
                                 "Ref": "AWS::AccountId"
                             },

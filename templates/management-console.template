@@ -27,15 +27,15 @@
             "Description": "Athena database name with table with managed feeds",
             "Type": "String"
         },
-        "AthenaTableName": {
-            "Description": "Athena table name with managed feeds",
+        "AthenaNumericTableName": {
+            "Description": "Athena table name with numeric managed feeds",
+            "Type": "String"
+        },
+        "AthenaTextTableName": {
+            "Description": "Athena table name with text managed feeds",
             "Type": "String"
         },
         "CuratedDatasetsBucketName": {
-            "Type": "String"
-        },
-        "EventsStatusTableName": {
-            "Description": "Table name for DynamoDB database which holds state of point updates",
             "Type": "String"
         },
         "IncomingQueueName": {
@@ -74,10 +74,6 @@
             "Description": "Number or web server instances in Auto scaling group",
             "Type": "Number"
         },
-        "PiPointsTableName": {
-            "Description": "PI points table name",
-            "Type": "String"
-        },
         "PrivateSubnet1ID": {
             "Description": "Management Console subnet 1",
             "Type": "AWS::EC2::Subnet::Id"
@@ -102,7 +98,7 @@
             "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
             "Default": "qs",
             "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
-            "MaxLength": 7,
+            "MaxLength": 12,
             "MinLength": 1,
             "Type": "String"
         },
@@ -116,7 +112,7 @@
         "QSS3KeyPrefix": {
             "AllowedPattern": "^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$",
             "ConstraintDescription": "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
-            "Default": "osisoft/47lining/latest/",
+            "Default": "quickstart-osisoft-pisystem2aws-connector/",
             "Description": "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).",
             "Type": "String"
         },
@@ -127,6 +123,19 @@
         "VpcId": {
             "Description": "Management Console server VPC",
             "Type": "AWS::EC2::VPC::Id"
+        },
+        "RDSUri": {
+            "Description": "RDS connection uri",
+            "Type": "String",
+            "NoEcho": "true"
+        },
+        "AfSynchronizationLambdaARN": {
+            "Description": "ARN of AF Synchronization Lambda",
+            "Type": "String"
+        },
+        "PiPointsSynchronizationLambdaARN": {
+            "Description": "ARN of Pi Points Synchronization Lambda",
+            "Type": "String"
         }
     },
     "Mappings": {
@@ -134,14 +143,35 @@
             "AMI": {
                 "AMZNLINUXHVM": "amzn-ami-hvm-2018.03.0.20180412-x86_64-gp2"
             },
-            "eu-west-1": {
-                "AMZNLINUXHVM": "ami-9cbe9be5"
-            },
             "us-east-1": {
                 "AMZNLINUXHVM": "ami-467ca739"
             },
+            "us-east-2": {
+                "AMZNLINUXHVM": "ami-f63b1193"
+            },
             "us-west-2": {
                 "AMZNLINUXHVM": "ami-6b8cef13"
+            }
+            "eu-central-1": {
+                "AMZNLINUXHVM": "ami-5652ce39"
+            },
+            "eu-west-1": {
+                "AMZNLINUXHVM": "ami-9cbe9be5"
+            },
+            "eu-west-2": {
+                "AMZNLINUXHVM": "ami-403e2524"
+            },
+            "ap-southeast-1": {
+                "AMZNLINUXHVM": "ami-68097514"
+            },
+            "ap-southeast-2": {
+                "AMZNLINUXHVM": "ami-942dd1f6"
+            },
+            "ap-northeast-1": {
+                "AMZNLINUXHVM": "ami-ceafcba8"
+            },
+            "ap-northeast-2": {
+                "AMZNLINUXHVM": "ami-863090e8"
             }
         }
     },
@@ -289,9 +319,6 @@
                                     "Fn::Join": [
                                         "\n",
                                         [
-                                            "# Install npm",
-                                            "curl --silent --location https://rpm.nodesource.com/setup_8.x | bash -",
-                                            "yum -y install nodejs",
                                             "# Download files from S3",
                                             "cd /home/ec2-user",
                                             {
@@ -299,10 +326,6 @@
                                             },
                                             "unzip assets.zip",
                                             "rm assets.zip",
-                                            "# Install dependencies and build webapp",
-                                            "cd /home/ec2-user/assets/webapp_management_console/app",
-                                            "npm install",
-                                            "npm run build",
                                             "# Install Python requirements",
                                             "cd /home/ec2-user/assets",
                                             "pip-3.5 install -r /home/ec2-user/assets/webapp_management_console/webapp-requirements.txt",
@@ -323,6 +346,9 @@
                                             "[general]",
                                             {
                                                 "Fn::Sub": "region=${AWS::Region}"
+                                            },
+                                            {
+                                                "Fn::Sub": "account_id=${AWS::AccountId}"
                                             },
                                             "[webapp]",
                                             "port=4000",
@@ -346,16 +372,22 @@
                                                 "Fn::Sub": "af_structure_database=${AfStructureDatabase}"
                                             },
                                             {
-                                                "Fn::Sub": "pi_points_table_name=${PiPointsTableName}"
+                                                "Fn::Sub": "athena_numeric_table_name=${AthenaNumericTableName}"
                                             },
                                             {
-                                                "Fn::Sub": "events_status_table_name=${EventsStatusTableName}"
-                                            },
-                                            {
-                                                "Fn::Sub": "athena_table_name=${AthenaTableName}"
+                                                "Fn::Sub": "athena_text_table_name=${AthenaTextTableName}"
                                             },
                                             {
                                                 "Fn::Sub": "athena_database_name=${AthenaDatabaseName}"
+                                            },
+                                            {
+                                                "Fn::Sub": "postgres_uri=${RDSUri}"
+                                            },
+                                            {
+                                                "Fn::Sub": "af_sync_lambda_arn=${AfSynchronizationLambdaARN}"
+                                            },
+                                            {
+                                                "Fn::Sub": "pi_points_sync_lambda_arn=${PiPointsSynchronizationLambdaARN}"
                                             },
                                             "s3_rule_bucket_key_prefix=rules"
                                         ]

@@ -590,3 +590,88 @@ def test_select_no_attributes():
     assert actual is not None
     expected = {}
     assert expected == actual
+
+
+def test_select_attributes_from_all_assets():
+    # given
+    browser = AfStructureBrowser(
+        assets_query=".*",
+        assets_field="name",
+        attributes_query="Fuel",
+        attributes_field="name"
+    )
+
+    # when
+    actual = browser.search_assets(TEST_STRUCTURE_WITH_ATTRIBUTES)
+
+    # then
+    assert actual is not None
+    expected = {
+        "\\\\EC2AMAZ-0EE3VGR\\NuGreen\\NuGreen": {
+            "name": "NuGreen",
+            "path": "\\\\EC2AMAZ-0EE3VGR\\NuGreen\\NuGreen",
+            "attributes": [
+                {
+                    "name": "Fuel",
+                    "description": "Fuel description"
+                }
+            ]
+        },
+        "\\\\EC2AMAZ-0EE3VGR\\NuGreen\\NuGreen\\Second Extruding Process": {
+            "name": "Second Extruding Process",
+            "description": "Description 2",
+            "path": "\\\\EC2AMAZ-0EE3VGR\\NuGreen\\NuGreen\\Second Extruding Process",
+            "attributes": [
+                {
+                    "name": "Fuel",
+                    "description": "Fuel description second 2"
+                }
+            ]
+        }
+    }
+    assert expected == actual
+
+
+def test_select_attributes_by_pi_point_name():
+    # given
+    browser = AfStructureBrowser(
+        assets_query=".*",
+        assets_field="name",
+        attributes_query="SINUSOIDU_1",
+        attributes_field="point"
+    )
+
+    # when
+    actual = browser.search_assets(TEST_STRUCTURE_WITH_ATTRIBUTES)
+
+    # then
+    expected = {
+        "\\\\EC2AMAZ-0EE3VGR\\NuGreen\\NuGreen\\Little Rock": {
+            "name": "Little Rock",
+            "path": "\\\\EC2AMAZ-0EE3VGR\\NuGreen\\NuGreen\\Little Rock",
+            "description": "Current ...",
+            "attributes": [
+                {
+                    "name": "Water Savings",
+                    "categories": [
+                        {
+                            "name": "Energy Savings KPI",
+                            "description": "Relative energy use per ton of process feed."
+                        }
+                    ],
+                    "description": "Current percent savings in energy use.",
+                    "value": "",
+                    "type": "System.Double",
+                    "path": "\\\\EC2AMAZ-0EE3VGR\\NuGreen\\NuGreen\\Little Rock\\Extruding Process\\Equipment\\B-045|Water Savings",
+                    "point": {
+                        "name": "SINUSOIDU_1",
+                        "id": "10837",
+                        "path": "\\\\EC2AMAZ-0EE3VGR\\SINUSOIDU_1"
+                    }
+                }
+            ]
+        }
+    }
+
+    assert actual is not None
+    assert expected == actual

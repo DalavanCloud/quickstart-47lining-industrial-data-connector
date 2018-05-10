@@ -1,11 +1,11 @@
-export const SET_NUMBER_OF_RECENT_EVENTS_DAYS = 'SET_NUMBER_OF_RECENT_EVENTS_DAYS'
+export const SET_NUMBER_OF_RECENT_EVENTS = 'SET_NUMBER_OF_RECENT_EVENTS'
 export const LOAD_RECENT_EVENTS = 'LOAD_RECENT_EVENTS'
 export const SET_RECENT_EVENTS = 'SET_RECENT_EVENTS'
 
 
-export function setNumberOfRecentEventsDays(number) {
+export function setNumberOfRecentEvents(number) {
     return {
-        type: SET_NUMBER_OF_RECENT_EVENTS_DAYS,
+        type: SET_NUMBER_OF_RECENT_EVENTS,
         number
     }
 }

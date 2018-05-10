@@ -37,6 +37,15 @@
         "ConnectorInstanceProfileARN": {
             "Type": "String"
         },
+        "DataTransportService": {
+            "AllowedValues": [
+                "AWS IoT",
+                "Amazon Kinesis"
+            ],
+            "Default": "Amazon Kinesis",
+            "Description": "Method that defines how data from PiServer will be delivered to AWS. You can AWS Kinesis or AWS IoT. Depending on your choice, enter values for the parameters in one of the next two categories.",
+            "Type": "String"
+        },
         "DomainControllerServerIP": {
             "AllowedPattern": "^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))?$",
             "Description": "Host (IP) of the AD Domain Controller server. Required only if you've selected WIS authentication method.",
@@ -95,6 +104,14 @@
         "MetricNamespaceName": {
             "Type": "String"
         },
+        "MQTTBrokerHost": {
+            "Type": "String",
+            "Default": ""
+        },
+        "MQTTBrokerPort": {
+            "Type": "Number",
+            "Default": 8883
+        },
         "OutgoingQueueUrl": {
             "Type": "String"
         },
@@ -116,9 +133,6 @@
         "PIUser": {
             "Type": "String"
         },
-        "PiPointsTableName": {
-            "Type": "String"
-        },
         "PublicSubnet1ID": {
             "Description": "Connector subnet 1",
             "Type": "AWS::EC2::Subnet::Id"
@@ -132,7 +146,7 @@
             "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
             "Default": "qs",
             "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
-            "MaxLength": 7,
+            "MaxLength": 12,
             "MinLength": 1,
             "Type": "String"
         },
@@ -182,11 +196,32 @@
             "us-east-1": {
                 "WS2016": "ami-08910872"
             },
+            "us-east-2": {
+                "WS2016": "ami-21587144"
+            },
             "us-west-2": {
                 "WS2016": "ami-f6d8008e"
             },
+            "eu-central-1": {
+                "WS2016": "ami-da9b14b5"
+            },
             "eu-west-1": {
                 "WS2016": "ami-e055e899"
+            },
+            "eu-west-2": {
+                "WS2016": "ami-78657b1c"
+            },
+            "ap-southeast-1": {
+                "WS2016": "ami-870855e4"
+            },
+            "ap-southeast-2": {
+                "WS2016": "ami-de5eabbc"
+            },
+            "ap-northeast-1": {
+                "WS2016": "ami-ec279c8a"
+            },
+            "ap-northeast-2": {
+                "WS2016": "ami-e8ef4986"
             }
         }
     },
@@ -197,6 +232,18 @@
                     "Ref": "AuthType"
                 },
                 "WIS"
+            ]
+        },
+        "UseIoT": {
+            "Fn::Equals": [
+                { "Ref": "DataTransportService" },
+                "AWS IoT"
+            ]
+        },
+        "UseKinesis": {
+            "Fn::Equals": [
+                { "Ref": "DataTransportService" },
+                "Amazon Kinesis"
             ]
         }
     },
@@ -261,7 +308,7 @@
                         }
                     }
                 },
-                "Handler": "lambdas/logs_to_es_lambda.handler",
+                "Handler": "source/logs_to_es_lambda.handler",
                 "Role": {
                     "Ref": "LogsToElasticsearchRoleARN"
                 },
@@ -618,16 +665,19 @@
                                             },
                                             "    <add key=\"Interval\" value=\"1\"/>",
                                             {
-                                                "Fn::Sub": "    <add key=\"StreamName\" value=\"${KinesisStreamName}\"/>"
+                                                "Fn::If": [
+                                                    "UseKinesis",
+                                                    {
+                                                        "Fn::Sub": "    <add key=\"StreamName\" value=\"${KinesisStreamName}\"/>"
+                                                    },
+                                                    ""
+                                                ]
                                             },
                                             {
                                                 "Fn::Sub": "    <add key=\"EventQueueUrl\" value=\"${IncomingQueueUrl}\"/>"
                                             },
                                             {
                                                 "Fn::Sub": "    <add key=\"ResponseQueueUrl\" value=\"${OutgoingQueueUrl}\"/>"
-                                            },
-                                            {
-                                                "Fn::Sub": "    <add key=\"PiPointsTableName\" value=\"${PiPointsTableName}\"/>"
                                             },
                                             {
                                                 "Fn::Sub": "    <add key=\"Region\" value=\"${AWS::Region}\"/>"
@@ -659,6 +709,45 @@
                                             {
                                                 "Fn::Sub": "    <add key=\"PIPassword\" value=\"${PIPassword}\"/>"
                                             },
+                                            "    <add key=\"PIServerTimeout\" value=\"15\"/>",
+                                            "    <add key=\"AFServerTimeout\" value=\"15\"/>",
+                                            "    <add key=\"CommaSubstitutionChar\" value=\" \"/>",
+                                            {
+                                                "Fn::If": [
+                                                    "UseIoT",
+                                                    {
+                                                        "Fn::Sub": "    <add key=\"MQTTBrokerHost\" value=\"${MQTTBrokerHost}\"/>"
+                                                    },
+                                                    ""
+                                                ]
+                                            },
+                                            {
+                                                "Fn::If": [
+                                                    "UseIoT",
+                                                    {
+                                                        "Fn::Sub": "    <add key=\"MQTTBrokerPort\" value=\"${MQTTBrokerPort}\"/>"
+                                                    },
+                                                    ""
+                                                ]
+                                            },
+                                            {
+                                                "Fn::If": [
+                                                    "UseIoT",
+                                                    {
+                                                        "Fn::Sub": "    <add key=\"MQTTTopicPrefix\" value=\"${PIServerIP}\"/>"
+                                                    },
+                                                    ""
+                                                ]
+                                            },
+                                            {
+                                                "Fn::If": [
+                                                    "UseIoT",
+                                                    "    <add key=\"NumberOfThreads\" value=\"6\"/>",
+                                                    "    <add key=\"NumberOfThreads\" value=\"32\"/>"
+                                                ]
+                                            },
+                                            "    <add key=\"BatchSize\" value=\"500\" />",
+                                            "    <add key=\"BatchInterval\" value=\"1000\"/>",
                                             "  </appSettings>",
                                             "  <log4net>",
                                             "<appender name=\"RollingFile\" type=\"log4net.Appender.RollingFileAppender\">",

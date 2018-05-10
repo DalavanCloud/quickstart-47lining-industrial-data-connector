@@ -6,20 +6,18 @@ from configparser import ConfigParser
 from functools import wraps
 
 import boto3
-import datetime
-
 from flask import (
     Flask,
     request,
     session,
-    redirect,
     jsonify,
-    render_template,
-    url_for
+    render_template
 )
+from flask_sqlalchemy import SQLAlchemy
 from osisoft_pi2aws_root import PROJECT_DIR
-from service.publishing_manager import PublishingManager
-from utils.piaf.af_structure_browser import AfStructureBrowser
+from scheduling_manager.scheduling_manager import SchedulingManager, NoSuchRuleException
+from sqlalchemy import create_engine
+from webapp_management_console.json_encoder import CustomJSONEncoder
 from workers.managed_feeds.managed_feeds_manager import ManagedFeedsManager
 
 from webapp_management_console.app_exceptions import BackendException, raise_backend_exception
@@ -47,7 +45,7 @@ def login_required(fun):
     @wraps(fun)
     def wrapper(*args, **kwargs):
         if session.get('logged_in') is None:
-            return redirect(url_for('login'))
+            raise BackendException("Not logged in", status_code=400)
         return fun(*args, **kwargs)
 
     return wrapper
@@ -84,57 +82,75 @@ def any_root_path(path):
     return render_template('index.html')
 
 
-@app.route('/favicon.ico')
-def favicon():
-    return app.send_static_file('favicon.ico')
+@app.route('/favicon/<path>')
+def favicon(path):
+    return app.send_static_file('favicon/{}'.format(path))
 
 
-@app.route('/af-structure/view', methods=['POST'])
-@raise_backend_exception('Unable to load AF structure')
-@login_required
-def af_view():
+def _save_settings(settings):
     feed_manager = _create_managed_feeds_manager(app.config)
-    structure = feed_manager.get_latest_af_structure(database=app.config['af_structure_database'])
-
-    if structure is None:
-        log.error("Cannot acquire AF structure")
-        result = {}
-    else:
-        result = {
-            'menu': _get_menu_tree([structure]),
-            'nodes': _flatten_tree([structure])
-        }
-    return jsonify(result)
+    feed_manager.save_settings(settings)
+    _load_settings()
 
 
-def _get_menu_tree(nodes):
-    tree = {}
-    if nodes is None:
-        return tree
-    else:
-        for node in nodes:
-            tree[node['path']] = {
-                'name': node['name'],
-                'assets': _get_menu_tree(node.get('assets'))
-            }
-    return tree
+@app.route('/settings/save', methods=['POST'])
+@raise_backend_exception('Unable to save settings')
+@login_required
+def save_settings():
+    _save_settings(request.json['settings'])
+    return 'ok'
 
 
-def _flatten_tree(nodes):
-    flat_nodes = {}
-    if nodes is None:
-        return flat_nodes
-    else:
-        for node in nodes:
-            flat_nodes[node['path']] = {
-                'name': node['name'],
-                'description': node['description'],
-                'attributes': node['attributes'],
-                'template': node['template'],
-                'categories': node['categories']
-            }
-            flat_nodes.update(_flatten_tree(node.get('assets')))
-    return flat_nodes
+@app.route('/settings', methods=['GET'])
+@raise_backend_exception('Unable to load settings')
+@login_required
+def load_settings():
+    settings = _get_settings()
+    # overwrite afDbName in case it is not present in database
+    settings['afDbName'] = app.config['af_structure_database']
+    return jsonify(settings)
+
+
+@app.route('/structure/asset-children', methods=['POST'])
+@raise_backend_exception('Unable to load assets')
+@login_required
+def get_asset_children():
+    feed_manager = _create_managed_feeds_manager(app.config)
+    data = feed_manager.get_asset_children(request.json['parentAssetId'])
+    return jsonify(data)
+
+
+@app.route('/structure/search', methods=['POST'])
+@raise_backend_exception('Unable to search assets')
+@login_required
+def search_assets():
+    feed_manager = _create_managed_feeds_manager(app.config)
+    data = feed_manager.search_assets(
+        filters=request.json['filters'],
+        page=request.json.get('page', 0),
+        page_size=request.json.get('pageSize', 5)
+    )
+    return jsonify(data)
+
+
+@app.route('/structure/asset-attributes', methods=['POST'])
+@raise_backend_exception('Unable to search assets')
+@login_required
+def asset_attributes():
+    feed_manager = _create_managed_feeds_manager(app.config)
+    data = feed_manager.search_asset_attributes(
+        request.json['assetId'], request.json['filters'])
+    return jsonify(data)
+
+
+def _search_feeds(feed_manager, request_data):
+    feeds = feed_manager.search_pi_points(
+        filters=request_data.get('filters'),
+        pattern=request_data.get('searchPattern'),
+        pi_points=None,
+        status=request_data.get('searchForStatus')
+    )['pi_points']
+    return [feed['pi_point'] for feed in feeds]
 
 
 @app.route('/backfill', methods=['POST'])
@@ -142,8 +158,8 @@ def _flatten_tree(nodes):
 @login_required
 def backfill():
     feed_manager = _create_managed_feeds_manager(app.config)
-    if request.json.get('allPoints', False):
-        points = _get_all_pi_points(feed_manager)
+    if request.json.get('onlySearchedFeeds', False):
+        points = _search_feeds(feed_manager, request.get_json())
     else:
         points = request.json['feeds']
 
@@ -168,8 +184,8 @@ def interpolate():
     feed_manager = _create_managed_feeds_manager(app.config)
     query_syntax = request.json.get('syntax', False)
 
-    if request.json.get('allPoints', False):
-        points = _get_all_pi_points(feed_manager)
+    if request.json.get('onlySearchedFeeds', False):
+        points = _search_feeds(feed_manager, request.get_json())
     else:
         points = request.json['feeds']
 
@@ -187,25 +203,52 @@ def interpolate():
     return 'OK'
 
 
-@app.route('/publish', methods=['POST'])
-@raise_backend_exception('Cannot send publish request')
+@app.route('/subscribe', methods=['POST'])
+@raise_backend_exception('Cannot send subscribe request')
 @login_required
-def publish():
-    from_datetime = datetime.datetime.strptime(request.json.get('from'), "%Y-%m-%dT%H:%M:%S")
-    to_datetime = datetime.datetime.strptime(request.json.get('to'), "%Y-%m-%dT%H:%M:%S")
-    publishing_manager = PublishingManager.create_manager()
-    publishing_manager.publish_firehose_data(
-        from_datetime=from_datetime,
-        to_datetime=to_datetime,
-        curated_bucket_name=app.config['curated_datasets_bucket_name'],
-        publishing_bucket_name=app.config['published_datasets_bucket_name'],
-        data_prefix='data'
-    )
+def subscribe():
+    feed_manager = _create_managed_feeds_manager(app.config)
+    if request.json.get('onlySearchedFeeds', False):
+        points = _search_feeds(feed_manager, request.get_json())
+    else:
+        points = request.json['feeds']
+
+    feed_manager.send_subscribe_request(points)
+
     return 'OK'
 
 
-@app.route('/af-structure/sync', methods=['POST'])
-@raise_backend_exception('Cannot send AF-strucutre sync request')
+@app.route('/subscribe/<limit>', methods=['GET'])
+@raise_backend_exception('Cannot send subscribe request')
+@login_required
+def subscribe_with_limit(limit):
+    feed_manager = _create_managed_feeds_manager(app.config)
+    points = feed_manager.managed_feeds_dao.get_pi_points(limit)
+    points = [point['pi_point'] for point in points]
+
+    feed_manager.send_subscribe_request(points)
+
+    return jsonify(points)
+
+
+@app.route('/unsubscribe', methods=['POST'])
+@raise_backend_exception('Cannot send unsubscribe request')
+@login_required
+def unsubscribe():
+    feed_manager = _create_managed_feeds_manager(app.config)
+    if request.json.get('onlySearchedFeeds', False):
+        points = _search_feeds(feed_manager, request.get_json())
+    else:
+        points = request.json['feeds']
+
+    feed_manager = _create_managed_feeds_manager(app.config)
+    feed_manager.send_unsubscribe_request(points)
+
+    return 'OK'
+
+
+@app.route('/structure/sync', methods=['POST'])
+@raise_backend_exception('Cannot send structure sync request')
 @login_required
 def request_af_structure_sync():
     feed_manager = _create_managed_feeds_manager(app.config)
@@ -215,99 +258,33 @@ def request_af_structure_sync():
     return "OK"
 
 
-@app.route('/pi-point/subscribe', methods=['POST'])
-@raise_backend_exception('Cannot subscribe to PI Point')
+@app.route('/feeds/search', methods=['POST'])
+@raise_backend_exception('Cannot search PI Points list')
 @login_required
-def subscribe_to_pi_point():
-    points = request.get_json()
+def search_feeds():
     feed_manager = _create_managed_feeds_manager(app.config)
-    feed_manager.send_subscribe_request(points)
-    return "OK"
+    data = request.get_json()
+    page = int(data['page']) if 'page' in data else None
+    page_size = int(data['page_size']) if 'page_size' in data else None
+    feeds = feed_manager.search_pi_points(
+        pattern=data.get('query'),
+        pi_points=data.get('pi_points'),
+        status=data.get('status'),
+        use_regex=data.get('useRegex'),
+        page=page,
+        page_size=page_size
+    )
+    return jsonify(feeds)
 
 
-@app.route('/pi-point/unsubscribe', methods=['POST'])
-@raise_backend_exception('Cannot unubscribe PI Point')
-@login_required
-def unsubscribe_from_pi_point():
-    points = request.get_json()
-    feed_manager = _create_managed_feeds_manager(app.config)
-    feed_manager.send_unsubscribe_request(points)
-    return "OK"
-
-
-@app.route('/pi-point/subscribe/all', methods=['POST'])
-@raise_backend_exception('Cannot subscribe to PI Point')
-@login_required
-def subscribe_to_all_pi_point():
-    feed_manager = _create_managed_feeds_manager(app.config)
-    points = _get_all_pi_points(feed_manager)
-    feed_manager.send_subscribe_request(points)
-    return "OK"
-
-
-@app.route('/pi-point/unsubscribe/all', methods=['POST'])
-@raise_backend_exception('Cannot unubscribe PI Point')
-@login_required
-def unsubscribe_from_all_pi_point():
-    feed_manager = _create_managed_feeds_manager(app.config)
-    points = _get_all_pi_points(feed_manager)
-    feed_manager.send_unsubscribe_request(points)
-    return "OK"
-
-
-@app.route('/pi-point/get-subscribed', methods=['GET'])
-@raise_backend_exception('Cannot get subscribed PI Points')
-@login_required
-def get_subscribed_pi_points_names():
-    feed_manager = _create_managed_feeds_manager(app.config)
-    feeds = feed_manager.get_managed_feeds()
-
-    pi_points = [feed['pi_point'] for feed in feeds]
-    return jsonify(sorted(pi_points))
-
-
-@app.route('/pi-point/list', methods=['GET'])
-@raise_backend_exception('Cannot get PI Points list')
-@login_required
-def list_pi_points():
-    feed_manager = _create_managed_feeds_manager(app.config)
-    pi_points = feed_manager.get_pi_points()
-    return jsonify(pi_points)
-
-
-@app.route('/pi-point/sync', methods=['POST'])
+@app.route('/feeds/sync', methods=['POST'])
 @raise_backend_exception('Cannot send PiPoints sync request')
 @login_required
-def sync_pi_points():
+def sync_feeds():
     feed_manager = _create_managed_feeds_manager(app.config)
-    feed_manager.send_sync_pi_points_request(s3_bucket=app.config['curated_datasets_bucket_name'])
+    feed_manager.send_sync_pi_points_request(
+        s3_bucket=app.config['curated_datasets_bucket_name'])
     return "OK"
-
-
-@app.route('/af-structure/search', methods=['POST'])
-@raise_backend_exception('Cannot search AF-structure')
-@login_required
-def search_af_structure():
-    search_json = request.get_json()
-
-    assets_query = search_json['assetsQuery'].replace('*', '.*')
-    asset_field = search_json['assetsField'] if search_json['assetsField'] != "" else "name"
-    attributes_query = search_json['attributesQuery'].replace('*', '.*') if search_json['attributesQuery'] != "" else ".*"
-    attributes_field = search_json['attributesField'] if search_json['attributesField'] != "" else "name"
-
-    if asset_field == 'path':
-        assets_query = ".*" + assets_query
-
-    browser = AfStructureBrowser(
-        assets_query=assets_query,
-        assets_field=asset_field,
-        attributes_query=attributes_query,
-        attributes_field=attributes_field
-    )
-    feed_manager = _create_managed_feeds_manager(app.config)
-    structure = feed_manager.get_latest_af_structure(database=app.config['af_structure_database'])
-    result = browser.search_assets([structure])
-    return jsonify(result)
 
 
 @app.route('/events/get-recent', methods=['POST'])
@@ -330,26 +307,111 @@ def _format_cron_expression(cron_expr):
 @login_required
 def get_athena_info():
     athena_database = app.config['athena_database_name']
-    athena_table_name = app.config['athena_table_name']
-    athena_url = "https://{}.console.aws.amazon.com/athena/home?region={}".format(app.config['region'], app.config['region'])
+    athena_numeric_table_name = app.config['athena_numeric_table_name']
+    athena_text_table_name = app.config['athena_text_table_name']
+    athena_url = "https://{}.console.aws.amazon.com/athena/home?region={}".format(
+        app.config['region'],
+        app.config['region']
+    )
     return jsonify({
         'athena_url': athena_url,
         'athena_database': athena_database,
-        'athena_table_name': athena_table_name
+        'athena_numeric_table_name': athena_numeric_table_name,
+        'athena_text_table_name': athena_text_table_name
     })
 
 
-def _get_all_pi_points(feed_manager):
-    pi_points = feed_manager.get_pi_points()
-    return [pi_point['pi_point'] for pi_point in pi_points]
+@app.route('/scheduler/structure', methods=['POST'])
+@raise_backend_exception('Cannot schedule structure sync')
+@login_required
+def schedule_structure_sync():
+    scheduling_manager = _create_scheduling_manager()
+
+    arguments = {
+        'cron_expr': _format_cron_expression(request.json['cron']),
+        'af_struct_manager_payload': {
+            's3_bucket': app.config['curated_datasets_bucket_name'],
+            'database': app.config['af_structure_database']
+        },
+        'rule_name': app.config['SYNC_AF_STRUCTURE_EVENT_NAME']
+    }
+    scheduling_manager.create_af_sync_schedule(**arguments)
+
+    return 'ok'
+
+
+@app.route('/scheduler/feeds', methods=['POST'])
+@raise_backend_exception('Cannot schedule Feeds List sync')
+@login_required
+def schedule_feeds_sync():
+    scheduling_manager = _create_scheduling_manager()
+
+    arguments = {
+        'cron_expr': _format_cron_expression(request.json['cron']),
+        'pi_points_manager_payload': {
+            's3_bucket': app.config['curated_datasets_bucket_name']
+        },
+        'rule_name': app.config['SYNC_PI_POINTS_EVENT_NAME']
+    }
+    scheduling_manager.create_pi_points_sync_schedule(**arguments)
+
+    return 'ok'
+
+
+@app.route('/scheduler/rules', methods=['GET'])
+@login_required
+def get_scheduler_rule():
+    return jsonify({
+        'structure': scheduler_rule(app.config['SYNC_AF_STRUCTURE_EVENT_NAME']),
+        'feeds': scheduler_rule(app.config['SYNC_PI_POINTS_EVENT_NAME'])
+    })
+
+
+def scheduler_rule(rule_name):
+    scheduling_manager = _create_scheduling_manager()
+
+    try:
+        rule = scheduling_manager.get_rule_parameters_by_rule_name(
+            rule_name, fetch_feed=False)
+    except NoSuchRuleException:
+        return {
+            'ruleName': rule_name,
+            'cron': 'unknown'
+        }
+
+    rule = {
+        'ruleName': rule_name,
+        'query': rule.get('query'),
+        'dbName': rule.get('database'),
+        'cron': rule['schedule_expression'].replace('cron(', '').replace(')', ''),
+        'interval': rule.get('interval'),
+        'intervalUnit': rule.get('interval_unit')
+    }
+
+    return {k: v for k, v in rule.items() if v is not None}
 
 
 def _create_managed_feeds_manager(config):
     return ManagedFeedsManager.create_manager(
         aws_region=config['region'],
-        pi_points_table_name=config['pi_points_table_name'],
-        events_status_table_name=config['events_status_table_name'],
+        postgres_session=database.session,
         incoming_queue_name=config['incoming_queue_name']
+    )
+
+
+def _create_scheduling_manager():
+    lambda_arns = {
+        'AF_SYNC_LAMBDA_ARN': app.config['af_sync_lambda_arn'],
+        'PI_POINTS_SYNC_LAMBDA_KEY': app.config['pi_points_sync_lambda_arn']
+    }
+
+    boto_session = boto3.session.Session()
+    return SchedulingManager(
+        boto_session.client('events', region_name=app.config['region']),
+        lambda_arns,
+        s3_resource=boto_session.resource('s3'),
+        s3_rule_bucket=app.config['curated_datasets_bucket_name'],
+        s3_rule_bucket_key_prefix=app.config['s3_rule_bucket_key_prefix']
     )
 
 
@@ -369,10 +431,38 @@ def _parse_command_line_args():
     return parser.parse_args()
 
 
+def _get_settings():
+    feed_manager = _create_managed_feeds_manager(app.config)
+    return feed_manager.get_settings()
+
+
+def _load_settings():
+    feed_manager = _create_managed_feeds_manager(app.config)
+    settings = feed_manager.get_settings()
+    if 'afDbName' in settings.keys():
+        app.config['af_structure_database'] = settings['afDbName']
+
+
 if __name__ == "__main__":
-    logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
     app.secret_key = os.urandom(47)
     args = _parse_command_line_args()
     config = _read_config(args.config)
     app.config.update(config)
-    app.run(host='0.0.0.0', port=int(config['port']), threaded=True)
+    app.config['SQLALCHEMY_DATABASE_URI'] = config['postgres_uri']
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SYNC_PI_POINTS_EVENT_NAME'] = "{}-sync-pi-points-{}".format(
+        config['region'],
+        config['account_id']
+    )
+    app.config['SYNC_AF_STRUCTURE_EVENT_NAME'] = "{}-sync-af-structure-{}".format(
+        config['region'],
+        config['account_id']
+    )
+    engine = create_engine(config['postgres_uri'], use_batch_mode=True)
+    database = SQLAlchemy(app, session_options={'bind': engine})
+    app.json_encoder = CustomJSONEncoder
+
+    _load_settings()
+    app.run(host='0.0.0.0', port=int(
+        config['port']), threaded=True)

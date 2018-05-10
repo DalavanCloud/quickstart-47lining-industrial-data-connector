@@ -46,7 +46,7 @@
                         }
                     }
                 },
-                "Handler": "lambdas.elasticsearch_index_clean_lambda.es_index_clean_handler",
+                "Handler": "source.elasticsearch_index_clean_lambda.es_index_clean_handler",
                 "Role": {
                     "Ref": "ElasticsearchIndexCleanLambdaRoleARN"
                 },

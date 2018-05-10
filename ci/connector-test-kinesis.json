@@ -1,0 +1,186 @@
+[
+  {
+      "ParameterKey": "ConnectorAgentAssetsS3BucketName",
+      "ParameterValue": "aws-quickstart-datasets"
+  },
+  {
+      "ParameterKey": "ConnectorAgentAssetsS3KeyPrefix",
+      "ParameterValue": "osisoft/agent/v3/"
+  },
+  {
+      "ParameterKey": "QSDeploymentSuffix",
+      "ParameterValue": "qs"
+  },
+  {
+      "ParameterKey": "RemoteAccessCIDR",
+      "ParameterValue": "1.1.1.1/32"
+  },
+  {
+      "ParameterKey": "InstanceType",
+      "ParameterValue": "t2.micro"
+  },
+  {
+      "ParameterKey": "ConnectorInstanceType",
+      "ParameterValue": "t2.micro"
+  },
+  {
+      "ParameterKey": "WorkerInstanceType",
+      "ParameterValue": "t2.micro"
+  },
+  {
+      "ParameterKey": "KeyName",
+      "ParameterValue": "ci-key"
+  },
+  {
+      "ParameterKey": "VPCDefinition",
+      "ParameterValue": "QuickstartDefault"
+  },
+  {
+      "ParameterKey": "AvailabilityZones",
+      "ParameterValue": "$[taskcat_genaz_2]"
+  },
+  {
+      "ParameterKey": "ApplicationUser",
+      "ParameterValue": "ConsoleAdmin"
+  },
+  {
+      "ParameterKey": "ApplicationPassword",
+      "ParameterValue": "$[taskcat_genpass_16]"
+  },
+  {
+      "ParameterKey": "ElasticsearchNodeCount",
+      "ParameterValue": "1"
+  },
+  {
+      "ParameterKey": "ElasticsearchNodeType",
+      "ParameterValue": "t2.small.elasticsearch"
+  },
+  {
+      "ParameterKey": "AfStructureDatabase",
+      "ParameterValue": "NuGreen"
+  },
+  {
+      "ParameterKey": "LogGroupNamePrefix",
+      "ParameterValue": "ConnectorLogGroup"
+  },
+  {
+      "ParameterKey": "MetricNamespaceNamePrefix",
+      "ParameterValue": "ConnectorMetricNamespace"
+  },
+  {
+      "ParameterKey": "PIServerIP",
+      "ParameterValue": "1.1.1.1"
+  },
+  {
+      "ParameterKey": "AFUser",
+      "ParameterValue": "AFUser"
+  },
+  {
+      "ParameterKey": "PIPort",
+      "ParameterValue": "5450"
+  },
+  {
+      "ParameterKey": "AFServerIP",
+      "ParameterValue": "1.1.1.1"
+  },
+  {
+      "ParameterKey": "AFPort",
+      "ParameterValue": "5450"
+  },
+  {
+      "ParameterKey": "AFPassword",
+      "ParameterValue": "$[taskcat_genpass_16]"
+  },
+  {
+      "ParameterKey": "AFDomainName",
+      "ParameterValue": "AFDomainName"
+  },
+  {
+      "ParameterKey": "PIUser",
+      "ParameterValue": "PIUser"
+  },
+  {
+      "ParameterKey": "PIPassword",
+      "ParameterValue": "$[taskcat_genpass_16]"
+  },
+  {
+      "ParameterKey": "LicensedSoftwareS3BucketName",
+      "ParameterValue": "aws-quickstart-datasets"
+  },
+  {
+      "ParameterKey": "LicensedSoftwareS3KeyPrefix",
+      "ParameterValue": "quickstart-osisoft/licensed-software/"
+  },
+  {
+      "ParameterKey": "MaxIndexAge",
+      "ParameterValue": "7"
+  },
+  {
+      "ParameterKey": "EnableS3LifecycleRules",
+      "ParameterValue": "yes"
+  },
+  {
+      "ParameterKey": "IATransitionPeriodInDays",
+      "ParameterValue": "90"
+  },
+  {
+      "ParameterKey": "GlacierTransitionPeriodInDays",
+      "ParameterValue": "365"
+  },
+  {
+      "ParameterKey": "KinesisStreamsShardsCount",
+      "ParameterValue": "1"
+  },
+  {
+      "ParameterKey": "AuthType",
+      "ParameterValue": "Explicit user and password"
+  },
+  {
+      "ParameterKey": "WISUser",
+      "ParameterValue": ""
+  },
+  {
+      "ParameterKey": "WISPassword",
+      "ParameterValue": ""
+  },
+  {
+      "ParameterKey": "WISFQDN",
+      "ParameterValue": ""
+  },
+  {
+      "ParameterKey": "DomainControllerServerIP",
+      "ParameterValue": ""
+  },
+  {
+      "ParameterKey": "DataTransportService",
+      "ParameterValue": "Amazon Kinesis"
+  },
+  {
+      "ParameterKey": "MosquittoInstanceType",
+      "ParameterValue": "t2.nano"
+  },
+  {
+      "ParameterKey": "RDSDatabaseName",
+      "ParameterValue": "connectoraws"
+  },
+  {
+      "ParameterKey": "RDSInstanceType",
+      "ParameterValue": "db.t2.micro"
+  },
+  {
+      "ParameterKey": "RDSPassword",
+      "ParameterValue": "$[taskcat_genpass_16]"
+  },
+  {
+      "ParameterKey": "RDSUsername",
+      "ParameterValue": "rdsuser"
+  },
+  {
+      "ParameterKey": "QSS3BucketName",
+      "ParameterValue": "osisoft-ireland-syncing-bucket"
+  },
+  {
+      "ParameterKey": "QSS3KeyPrefix",
+      "ParameterValue": "osisoft-amadeusz/qs-release/"
+  }
+]

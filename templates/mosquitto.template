@@ -1,0 +1,389 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "AWS Cloudformation template to create EC2 instance and run Mosquitto Broker which server as message broker between connector and AWS IoT. **WARNING** This template creates an Amazon EC2 instance. You will be billed for the AWS resources used if you create a stack from this template.",
+    "Parameters": {
+        "InstanceType": {
+            "AllowedValues": [
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m5.large",
+                "m5.xlarge",
+                "m5.2xlarge",
+                "c4.large",
+                "c4.xlarge",
+                "c4.2xlarge",
+                "c4.4xlarge",
+                "c4.8xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type.",
+            "Default": "t2.micro",
+            "Description": "Server EC2 instance type",
+            "Type": "String"
+        },
+        "IoTCertificateID": {
+            "Type": "String"
+        },
+        "KeyName": {
+            "ConstraintDescription": "Can contain only ASCII characters.",
+            "Description": "Name of an existing EC2 KeyPair to enable SSH access to the instance",
+            "Type": "AWS::EC2::KeyPair::KeyName"
+        },
+        "MosquittoInstanceProfileARN": {
+            "Type": "String"
+        },
+        "MosquittoPort": {
+            "Type": "Number",
+            "Default": 8883
+        },
+        "NumInstances": {
+            "Default": 1,
+            "Description": "Number of mosquitto broker instances in auto scaling group",
+            "Type": "Number"
+        },
+        "PiServer": {
+            "Type": "String"
+        },
+        "PrivateKeyFile": {
+            "Description": "Content of Private Key file associated with CSR. Required only if Data Transport Service is set to \"IoT\"",
+            "Type": "String"
+        },
+        "PrivateSubnet1ID": {
+            "Description": "Worker server subnet 1",
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "PrivateSubnet2ID": {
+            "Description": "Worker server subnet 2",
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "QSDeploymentSuffix": {
+            "AllowedPattern": "[a-z0-9]+",
+            "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
+            "Default": "qs",
+            "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
+            "MaxLength": 12,
+            "MinLength": 1,
+            "Type": "String"
+        },
+        "VPCCIDR": {
+            "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
+            "ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/16-28",
+            "Description": "CIDR block for the VPC.",
+            "Type": "String"
+        },
+        "VpcId": {
+            "Description": "Communication Worker VPC",
+            "Type": "AWS::EC2::VPC::Id"
+        }
+    },
+    "Mappings": {
+        "AWSAMIRegionMap": {
+            "AMI": {
+                "AMZNLINUXHVM": "amzn2-ami-hvm-2017.12.0.20180115-x86_64-gp2"
+            },
+            "us-east-1": {
+                "AMZNLINUXHVM": "ami-428aa838"
+            },
+            "us-east-2": {
+                "AMZNLINUXHVM": "ami-710e2414"
+            },
+            "us-west-2": {
+                "AMZNLINUXHVM": "ami-7f43f307"
+            },
+            "eu-central-1": {
+                "AMZNLINUXHVM": "ami-1b2bb774"
+            },
+            "eu-west-1": {
+                "AMZNLINUXHVM": "ami-db1688a2"
+            },
+            "eu-west-2": {
+                "AMZNLINUXHVM": "ami-6d263d09"
+            },
+            "ap-southeast-1": {
+                "AMZNLINUXHVM": "ami-4f89f533"
+            },
+            "ap-southeast-2": {
+                "AMZNLINUXHVM": "ami-38708c5a"
+            },
+            "ap-northeast-1": {
+                "AMZNLINUXHVM": "ami-c2680fa4"
+            },
+            "ap-northeast-2": {
+                "AMZNLINUXHVM": "ami-3e04a450"
+            }
+        }
+    },
+    "Resources": {
+        "MosquittoLoadBalancer": {
+            "Properties": {
+                "ConnectionSettings": {
+                    "IdleTimeout": "180"
+                },
+                "Listeners": [
+                    {
+                        "InstancePort": {
+                            "Ref": "MosquittoPort"
+                        },
+                        "LoadBalancerPort": {
+                            "Ref": "MosquittoPort"
+                        },
+                        "Protocol": "TCP"
+                    }
+                ],
+                "SecurityGroups": [
+                    {
+                        "Ref": "ELBSecurityGroup"
+                    }
+                ],
+                "Scheme": "internal",
+                "Subnets": [
+                    {
+                        "Ref": "PrivateSubnet1ID"
+                    },
+                    {
+                        "Ref": "PrivateSubnet2ID"
+                    }
+                ]
+            },
+            "Type": "AWS::ElasticLoadBalancing::LoadBalancer"
+        },
+        "MosquittoAutoScalingGroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "DesiredCapacity": {
+                    "Ref": "NumInstances"
+                },
+                "LaunchConfigurationName": {
+                    "Ref": "MosquittoLaunchConfiguration"
+                },
+                "LoadBalancerNames": [
+                    {
+                        "Ref": "MosquittoLoadBalancer"
+                    }
+                ],
+                "MaxSize": {
+                    "Ref": "NumInstances"
+                },
+                "MinSize": {
+                    "Ref": "NumInstances"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "PropagateAtLaunch": "true",
+                        "Value": {
+                            "Fn::Sub": "MosquittoBroker-${QSDeploymentSuffix}"
+                        }
+                    }
+                ],
+                "VPCZoneIdentifier": [
+                    {
+                        "Ref": "PrivateSubnet1ID"
+                    },
+                    {
+                        "Ref": "PrivateSubnet2ID"
+                    }
+                ]
+            }
+        },
+        "MosquittoLaunchConfiguration": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Metadata": {
+                "AWS::CloudFormation::Init": {
+                    "config": {
+                        "commands": {
+                            "1_create_cert_directory": {
+                                "command": "mkdir -p /etc/mosquitto/certs/"
+                            },
+                            "2_create_cert_file": {
+                                "command": {
+                                    "Fn::Sub": "aws iot describe-certificate --certificate-id ${IoTCertificateID} --region ${AWS::Region} | jq -r .certificateDescription.certificatePem > /etc/mosquitto/certs/cert.crt"
+                                }
+                            },
+                            "4_add_read_permissions": {
+                                "command": "cd /etc/mosquitto/certs/ && chmod 644 private.key && chmod 644 cert.crt"
+                            },
+                            "5_download_CA_certificate": {
+                                "command": "cd /etc/mosquitto/certs/ && wget https://www.symantec.com/content/en/us/enterprise/verisign/roots/VeriSign-Class%203-Public-Primary-Certification-Authority-G5.pem -O rootCA.pem"
+                            },
+                            "6_fetch_iot_endpoint": {
+                                "command": {
+                                    "Fn::Sub": "echo address $(aws iot describe-endpoint --region ${AWS::Region} | jq -r .endpointAddress):8883 >> /etc/mosquitto/conf.d/bridge.conf"
+                                }
+                            },
+                            "7_run_mosquitto": {
+                                "command": "mosquitto -c /etc/mosquitto/conf.d/bridge.conf -d"
+                            }
+                        },
+                        "files": {
+                            "/etc/mosquitto/conf.d/bridge.conf": {
+                                "content": {
+                                    "Fn::Join": [
+                                        "\n",
+                                        [
+                                            "connection awsiot",
+                                            {
+                                                "Fn::Sub": "topic ${PiServer}/# out 0"
+                                            },
+                                            "bridge_protocol_version mqttv311",
+                                            "bridge_insecure false",
+                                            "cleansession true",
+                                            {
+                                                "Fn::Sub": "clientid ${PiServer}-${QSDeploymentSuffix}"
+                                            },
+                                            "start_type automatic",
+                                            "notifications false",
+                                            "log_type all",
+                                            "bridge_cafile /etc/mosquitto/certs/rootCA.pem",
+                                            "bridge_certfile /etc/mosquitto/certs/cert.crt",
+                                            "bridge_keyfile /etc/mosquitto/certs/private.key",
+                                            {
+                                                "Fn::Sub": "listener ${MosquittoPort}"
+                                            },
+                                            ""
+                                        ]
+                                    ]
+                                },
+                                "group": "ec2-user",
+                                "mode": "000770",
+                                "owner": "ec2-user"
+                            },
+                            "/etc/mosquitto/certs/private.key": {
+                                "content": {
+                                    "Fn::Sub": "${PrivateKeyFile}"
+                                },
+                                "group": "ec2-user",
+                                "mode": "000770",
+                                "owner": "ec2-user"
+                            }
+                        },
+                        "packages": {
+                            "rpm": {
+                                "epel": "http://dl.fedoraproject.org/pub/epel/7/x86_64/Packages/e/epel-release-7-11.noarch.rpm"
+                            },
+                            "yum": {
+                                "libwebsockets": [],
+                                "jq": [],
+                                "mosquitto": []
+                            }
+                        }
+                    }
+                },
+                "Comment": "Install server"
+            },
+            "Properties": {
+                "IamInstanceProfile": {
+                    "Ref": "MosquittoInstanceProfileARN"
+                },
+                "ImageId": {
+                    "Fn::FindInMap": [
+                        "AWSAMIRegionMap",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        "AMZNLINUXHVM"
+                    ]
+                },
+                "InstanceType": {
+                    "Ref": "InstanceType"
+                },
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "SecurityGroups": [
+                    {
+                        "Ref": "InstanceSecurityGroup"
+                    }
+                ],
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Join": [
+                            "\n",
+                            [
+                                "#!/bin/bash",
+                                "yum update -y",
+                                "yum install -y aws-cfn-bootstrap",
+                                {
+                                    "Fn::Sub": "/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource MosquittoLaunchConfiguration --region ${AWS::Region}"
+                                },
+                                "# Signal the status from cfn-init",
+                                {
+                                    "Fn::Sub": "/opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource MosquittoLaunchConfiguration --region ${AWS::Region}"
+                                }
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
+        "InstanceSecurityGroup": {
+            "Properties": {
+                "GroupDescription": "Enable SSH access from Bastion via port 22 and via Mosquitto port",
+                "SecurityGroupIngress": [
+                    {
+                        "CidrIp": {
+                            "Ref": "VPCCIDR"
+                        },
+                        "FromPort": "22",
+                        "IpProtocol": "tcp",
+                        "ToPort": "22"
+                    },
+                    {
+                        "SourceSecurityGroupId": {
+                            "Ref": "ELBSecurityGroup"
+                        },
+                        "FromPort": {
+                            "Ref": "MosquittoPort"
+                        },
+                        "IpProtocol": "tcp",
+                        "ToPort": {
+                            "Ref": "MosquittoPort"
+                        }
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "VpcId"
+                }
+            },
+            "Type": "AWS::EC2::SecurityGroup"
+        },
+        "ELBSecurityGroup": {
+            "Properties": {
+                "GroupDescription": "Enable Elastic Load Balancer access via Mosquitto port",
+                "SecurityGroupIngress": [
+                    {
+                        "CidrIp": {
+                            "Ref": "VPCCIDR"
+                        },
+                        "FromPort": {
+                            "Ref": "MosquittoPort"
+                        },
+                        "IpProtocol": "tcp",
+                        "ToPort": {
+                            "Ref": "MosquittoPort"
+                        }
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "VpcId"
+                }
+            },
+            "Type": "AWS::EC2::SecurityGroup"
+        }
+    },
+    "Outputs": {
+        "MosquittoBrokerEndpoint": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "MosquittoLoadBalancer",
+                    "DNSName"
+                ]
+            },
+            "Description": "Mosquitto Broker URL"
+        }
+    }
+}

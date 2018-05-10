@@ -11,13 +11,7 @@
         "CuratedDatasetsBucketName": {
             "Type": "String"
         },
-        "EventsStatusTableARN": {
-            "Type": "String"
-        },
         "LicensedSoftwareS3BucketName": {
-            "Type": "String"
-        },
-        "PiPointsTableARN": {
             "Type": "String"
         },
         "PublishedDataBucketName": {
@@ -220,30 +214,21 @@
                             "Statement": [
                                 {
                                     "Action": [
-                                        "dynamodb:PutItem",
-                                        "dynamodb:DeleteItem",
-                                        "dynamodb:GetItem",
-                                        "dynamodb:Scan",
-                                        "dynamodb:Query",
-                                        "dynamodb:UpdateItem"
+                                        "iot:RegisterThing",
+                                        "iot:UpdateThing",
+                                        "iot:CreateThing",
+                                        "iot:DescribeThing",
+                                        "iot:DeleteThing"
                                     ],
                                     "Effect": "Allow",
-                                    "Resource": [
-                                        {
-                                            "Ref": "PiPointsTableARN"
-                                        },
-                                        {
-                                            "Ref": "EventsStatusTableARN"
-                                        },
-                                        {
-                                            "Fn::Sub": "${EventsStatusTableARN}/index/*"
-                                        }
-                                    ]
+                                    "Resource": {
+                                        "Fn::Sub": "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:thing/*"
+                                    }
                                 }
                             ],
                             "Version": "2012-10-17"
                         },
-                        "PolicyName": "DynamoDBPolicy"
+                        "PolicyName": "IoTAccess"
                     }
                 ]
             },
@@ -418,7 +403,10 @@
                         "PolicyDocument": {
                             "Statement": [
                                 {
-                                    "Action": "kinesis:PutRecord",
+                                    "Action": [
+                                        "kinesis:PutRecord",
+                                        "kinesis:PutRecords"
+                                    ],
                                     "Effect": "Allow",
                                     "Resource": {
                                         "Fn::Sub": "arn:aws:kinesis:${AWS::Region}:${AWS::AccountId}:stream/*PIInputStream*"
@@ -741,6 +729,152 @@
             },
             "Type": "AWS::IAM::Policy"
         },
+        "GenerateCSRLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }
+            }
+        },
+        "DeactivateCertificateLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }
+            }
+        },
+        "GenerateCSRLambdaRolePolicy": {
+            "Properties": {
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Action": [
+                                "logs:CreateLogGroup",
+                                "logs:CreateLogStream",
+                                "logs:DescribeLogStreams",
+                                "logs:PutLogEvents"
+                            ],
+                            "Effect": "Allow",
+                            "Resource": "arn:aws:logs:*:*:*"
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "PolicyName": "CloudWatchLambdaLoggingPolicy",
+                "Roles": [
+                    {
+                        "Ref": "GenerateCSRLambdaRole"
+                    }
+                ]
+            },
+            "Type": "AWS::IAM::Policy"
+        },
+        "DeactivateCertificateLambdaRolePolicy": {
+            "Properties": {
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Action": [
+                                "logs:CreateLogGroup",
+                                "logs:CreateLogStream",
+                                "logs:DescribeLogStreams",
+                                "logs:PutLogEvents"
+                            ],
+                            "Effect": "Allow",
+                            "Resource": "arn:aws:logs:*:*:*"
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": "iot:UpdateCertificate",
+                            "Resource": {
+                                "Fn::Sub": "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:cert/*"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "PolicyName": "CloudWatchLambdaLoggingPolicy",
+                "Roles": [
+                    {
+                        "Ref": "DeactivateCertificateLambdaRole"
+                    }
+                ]
+            },
+            "Type": "AWS::IAM::Policy"
+        },
+        "GenericPeriodicLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }
+            }
+        },
+        "IoTRulesRole": {
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Action": "sts:AssumeRole",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "iot.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Policies": [
+                    {
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Action": [
+                                        "s3:PutObject",
+                                        "cloudwatch:PutMetricData",
+                                        "es:ESHttpPut"
+                                    ],
+                                    "Effect": "Allow",
+                                    "Resource": "*"
+                                }
+                            ],
+                            "Version": "2012-10-17"
+                        },
+                        "PolicyName": "MosquittoBrokerIoTPolicy"
+                    }
+                ]
+            },
+            "Type": "AWS::IAM::Role"
+        },
         "KinesisAnalyticsCloudWatchLoggingPolicy": {
             "Properties": {
                 "PolicyDocument": {
@@ -932,6 +1066,16 @@
             },
             "Type": "AWS::IAM::InstanceProfile"
         },
+        "MosquittoBrokerInstanceProfile": {
+            "Properties": {
+                "Roles": [
+                    {
+                        "Ref": "MosquittoBrokerInstanceRole"
+                    }
+                ]
+            },
+            "Type": "AWS::IAM::InstanceProfile"
+        },
         "ManagementConsoleInstanceRole": {
             "Properties": {
                 "AssumeRolePolicyDocument": {
@@ -947,44 +1091,6 @@
                     "Version": "2012-10-17"
                 },
                 "Policies": [
-                    {
-                        "PolicyDocument": {
-                            "Statement": [
-                                {
-                                    "Action": [
-                                        "dynamodb:PutItem",
-                                        "dynamodb:GetItem",
-                                        "dynamodb:Scan",
-                                        "dynamodb:Query",
-                                        "dynamodb:UpdateItem"
-                                    ],
-                                    "Effect": "Allow",
-                                    "Resource": [
-                                        {
-                                            "Ref": "EventsStatusTableARN"
-                                        },
-                                        {
-                                            "Fn::Sub": "${EventsStatusTableARN}/index/*"
-                                        }
-                                    ]
-                                },
-                                {
-                                    "Action": [
-                                        "dynamodb:PutItem",
-                                        "dynamodb:DeleteItem",
-                                        "dynamodb:Scan",
-                                        "dynamodb:UpdateItem"
-                                    ],
-                                    "Effect": "Allow",
-                                    "Resource": {
-                                        "Ref": "PiPointsTableARN"
-                                    }
-                                }
-                            ],
-                            "Version": "2012-10-17"
-                        },
-                        "PolicyName": "DynamoPutEventAccess"
-                    },
                     {
                         "PolicyDocument": {
                             "Statement": [
@@ -1022,6 +1128,43 @@
             },
             "Type": "AWS::IAM::Role"
         },
+        "MosquittoBrokerInstanceRole": {
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Action": "sts:AssumeRole",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "ec2.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Policies": [
+                    {
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Action": [
+                                        "iot:Connect",
+                                        "iot:Publish",
+                                        "iot:DescribeCertificate",
+                                        "iot:DescribeEndpoint"
+                                    ],
+                                    "Effect": "Allow",
+                                    "Resource": "*"
+                                }
+                            ],
+                            "Version": "2012-10-17"
+                        },
+                        "PolicyName": "MosquittoBrokerIoTPolicy"
+                    }
+                ]
+            },
+            "Type": "AWS::IAM::Role"
+        },
         "RegisterKibanaCloudWatchLoggingPolicy": {
             "Properties": {
                 "PolicyDocument": {
@@ -1054,6 +1197,51 @@
                 ]
             },
             "Type": "AWS::IAM::Policy"
+        },
+        "CreateTablesLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "sts:AssumeRole",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }
+            }
+        },
+        "LambdaInVPC": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": "VPCAccess",
+                "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "ec2:CreateNetworkInterface",
+                                "ec2:DeleteNetworkInterface",
+                                "ec2:DescribeNetworkInterfaces"
+                            ],
+                            "Resource": "*"
+                        }
+                    ]
+                },
+                "Roles": [
+                    {
+                        "Ref": "CreateTablesLambdaRole"
+                    },
+                    {
+                        "Ref": "GenericPeriodicLambdaRole"
+                    }
+                ]
+            }
         },
         "RegisterKibanaDashboardRole": {
             "Properties": {
@@ -1117,6 +1305,9 @@
                     },
                     {
                         "Ref": "ElasticsearchBucketRole"
+                    },
+                    {
+                        "Ref": "GenericPeriodicLambdaRole"
                     }
                 ]
             },
@@ -1304,6 +1495,9 @@
                     },
                     {
                         "Ref": "ManagementConsoleInstanceRole"
+                    },
+                    {
+                        "Ref": "GenericPeriodicLambdaRole"
                     }
                 ]
             },
@@ -1383,6 +1577,30 @@
                 ]
             }
         },
+        "GenerateCSRLambdaRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "GenerateCSRLambdaRole",
+                    "Arn"
+                ]
+            }
+        },
+        "DeactivateCertificateLambdaRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "DeactivateCertificateLambdaRole",
+                    "Arn"
+                ]
+            }
+        },
+        "GenericPeriodicLambdaRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "GenericPeriodicLambdaRole",
+                    "Arn"
+                ]
+            }
+        },
         "LogsToElasticsearchRoleARN": {
             "Value": {
                 "Fn::GetAtt": [
@@ -1399,6 +1617,14 @@
                 ]
             }
         },
+        "CreateTablesLambdaRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "CreateTablesLambdaRole",
+                    "Arn"
+                ]
+            }
+        },
         "CopyLicencedBinaryLambdaRoleARN": {
             "Value": {
                 "Fn::GetAtt": [
@@ -1407,10 +1633,26 @@
                 ]
             }
         },
+        "IotRulesRoleARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "IoTRulesRole",
+                    "Arn"
+                ]
+            }
+        },
         "ManagementConsoleInstanceProfileARN": {
             "Value": {
                 "Fn::GetAtt": [
                     "ManagementConsoleInstanceProfile",
+                    "Arn"
+                ]
+            }
+        },
+        "MosquittoBrokerInstanceProfileARN": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "MosquittoBrokerInstanceProfile",
                     "Arn"
                 ]
             }

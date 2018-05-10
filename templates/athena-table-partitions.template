@@ -11,6 +11,9 @@
         "CuratedDatasetsBucketName": {
             "Type": "String"
         },
+        "DataTransportService": {
+            "Type": "String"
+        },
         "EnableS3LifecycleRules": {
             "AllowedValues": [
                 "yes",
@@ -35,7 +38,7 @@
             "ConstraintDescription": "Deployment suffix can include numbers, lowercase letters and should have the maximum length of 7 characters.",
             "Default": "qs",
             "Description": "You can deploy this Quick Start multiple times in the same region if you provide a different suffix that is added to resource names to make them unique per each deployment. Use this parameter to support deployment of production and test environments in the same region in the same AWS account.",
-            "MaxLength": 7,
+            "MaxLength": 12,
             "MinLength": 1,
             "Type": "String"
         },
@@ -46,13 +49,16 @@
     "Mappings": {
         "Constants": {
             "Buckets": {
-                "CuratedDatasetsNamePrefix": "datalake-curated-datasets-pi2aws",
+                "CuratedDatasetsNamePrefix": "dl-curated-datasets",
                 "AthenaResultBucketNamePrefix": "athena-pi2aws-query-results",
-                "CuratedDatasetsDataPath": "data/"
+                "CuratedDatasetsDataPath": "data/",
+                "CuratedDatasetsNumericDataPath": "data/numeric/",
+                "CuratedDatasetsTextDataPath": "data/text/"
             },
             "Athena": {
                 "DatabaseName": "default",
-                "TableNamePrefix": "managed_feeds",
+                "NumericTableNamePrefix": "managed_feeds_numeric",
+                "TextTableNamePrefix": "managed_feeds_text",
                 "PartitionKeyName": "dt"
             },
             "S3LifecycleStatus": {
@@ -73,66 +79,12 @@
                 "Description": "Create Athena table applications",
                 "Environment": {
                     "Variables": {
-                        "ATHENA_DATABASE_NAME": {
-                            "Fn::FindInMap": [
-                                "Constants",
-                                "Athena",
-                                "DatabaseName"
-                            ]
-                        },
-                        "ATHENA_QUERY_OUTPUT_LOCATION_DIR": {
-                            "Fn::Sub": [
-                                "s3://${BucketNamePrefix}-${AWS::AccountId}-${AWS::Region}-${QSDeploymentSuffix}/athena-results",
-                                {
-                                    "BucketNamePrefix": {
-                                        "Fn::FindInMap": [
-                                            "Constants",
-                                            "Buckets",
-                                            "CuratedDatasetsNamePrefix"
-                                        ]
-                                    }
-                                }
-                            ]
-                        },
-                        "ATHENA_S3_DATA_LOCATION_DIR": {
-                            "Fn::Join": [
-                                "",
-                                [
-                                    "s3://",
-                                    {
-                                        "Ref": "CuratedDatasetsBucket"
-                                    },
-                                    "/",
-                                    {
-                                        "Fn::FindInMap": [
-                                            "Constants",
-                                            "Buckets",
-                                            "CuratedDatasetsDataPath"
-                                        ]
-                                    }
-                                ]
-                            ]
-                        },
-                        "ATHENA_TABLE_NAME": {
-                            "Fn::Join": [
-                                "_",
-                                [
-                                    {
-                                        "Fn::FindInMap": [
-                                            "Constants",
-                                            "Athena",
-                                            "TableNamePrefix"
-                                        ]
-                                    },
-                                    {
-                                        "Ref": "QSDeploymentSuffix"
-                                    }
-                                ]
-                            ]
+                        "DATA_TRANSPORT_SERVICE": {
+                            "Ref": "DataTransportService"
                         }
                     }
                 },
-                "Handler": "lambdas.create_athena_table_lambda.lambda_handler",
+                "Handler": "source.create_athena_table_lambda.lambda_handler",
                 "Role": {
                     "Ref": "AthenaTableLambdaRoleARN"
                 },
@@ -141,21 +93,149 @@
             },
             "Type": "AWS::Lambda::Function"
         },
-        "CreateAthenaTable": {
+        "CreateManagedFeedsNumericTable": {
             "Properties": {
                 "ServiceToken": {
                     "Fn::GetAtt": [
                         "AthenaTableLambda",
                         "Arn"
                     ]
-                }
+                },
+                "AthenaDatabaseName": {
+                    "Fn::FindInMap": [
+                        "Constants",
+                        "Athena",
+                        "DatabaseName"
+                    ]
+                },
+                "AthenaQueryOutputLocationDir": {
+                    "Fn::Sub": [
+                        "s3://${BucketNamePrefix}-${AWS::AccountId}-${AWS::Region}-${QSDeploymentSuffix}/athena-results",
+                        {
+                            "BucketNamePrefix": {
+                                "Fn::FindInMap": [
+                                    "Constants",
+                                    "Buckets",
+                                    "CuratedDatasetsNamePrefix"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "S3DataLocationDir": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "s3://",
+                            {
+                                "Ref": "CuratedDatasetsBucket"
+                            },
+                            "/",
+                            {
+                                "Fn::FindInMap": [
+                                    "Constants",
+                                    "Buckets",
+                                    "CuratedDatasetsNumericDataPath"
+                                ]
+                            }
+                        ]
+                    ]
+                },
+                "AthenaTableName": {
+                    "Fn::Join": [
+                        "_",
+                        [
+                            {
+                                "Fn::FindInMap": [
+                                    "Constants",
+                                    "Athena",
+                                    "NumericTableNamePrefix"
+                                ]
+                            },
+                            {
+                                "Ref": "QSDeploymentSuffix"
+                            }
+                        ]
+                    ]
+                },
+                "ManagedFeedType": "DOUBLE"
             },
-            "Type": "Custom::CreateAthenaTable"
+            "Type": "Custom::CreateAthenaNumericTable"
+        },
+        "CreateManagedFeedsTextTable": {
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "AthenaTableLambda",
+                        "Arn"
+                    ]
+                },
+                "AthenaDatabaseName": {
+                    "Fn::FindInMap": [
+                        "Constants",
+                        "Athena",
+                        "DatabaseName"
+                    ]
+                },
+                "AthenaQueryOutputLocationDir": {
+                    "Fn::Sub": [
+                        "s3://${BucketNamePrefix}-${AWS::AccountId}-${AWS::Region}-${QSDeploymentSuffix}/athena-results",
+                        {
+                            "BucketNamePrefix": {
+                                "Fn::FindInMap": [
+                                    "Constants",
+                                    "Buckets",
+                                    "CuratedDatasetsNamePrefix"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "S3DataLocationDir": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "s3://",
+                            {
+                                "Ref": "CuratedDatasetsBucket"
+                            },
+                            "/",
+                            {
+                                "Fn::FindInMap": [
+                                    "Constants",
+                                    "Buckets",
+                                    "CuratedDatasetsTextDataPath"
+                                ]
+                            }
+                        ]
+                    ]
+                },
+                "AthenaTableName": {
+                    "Fn::Join": [
+                        "_",
+                        [
+                            {
+                                "Fn::FindInMap": [
+                                    "Constants",
+                                    "Athena",
+                                    "TextTableNamePrefix"
+                                ]
+                            },
+                            {
+                                "Ref": "QSDeploymentSuffix"
+                            }
+                        ]
+                    ]
+                },
+                "ManagedFeedType": "STRING"
+            },
+            "Type": "Custom::CreateAthenaTextTable"
         },
         "CuratedDatasetsBucket": {
             "DeletionPolicy": "Retain",
             "DependsOn": [
-                "LambdaInvokePermission"
+                "UpdateNumericTableInvokePermission",
+                "UpdateTextTableInvokePermission"
             ],
             "Properties": {
                 "BucketName": {
@@ -211,7 +291,7 @@
                                                 "Fn::FindInMap": [
                                                     "Constants",
                                                     "Buckets",
-                                                    "CuratedDatasetsDataPath"
+                                                    "CuratedDatasetsNumericDataPath"
                                                 ]
                                             }
                                         }
@@ -220,7 +300,32 @@
                             },
                             "Function": {
                                 "Fn::GetAtt": [
-                                    "UpdateAthenaTablePartitionsLambda",
+                                    "UpdateNumericTablePartitionsLambda",
+                                    "Arn"
+                                ]
+                            }
+                        },
+                        {
+                            "Event": "s3:ObjectCreated:*",
+                            "Filter": {
+                                "S3Key": {
+                                    "Rules": [
+                                        {
+                                            "Name": "prefix",
+                                            "Value": {
+                                                "Fn::FindInMap": [
+                                                    "Constants",
+                                                    "Buckets",
+                                                    "CuratedDatasetsTextDataPath"
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                }
+                            },
+                            "Function": {
+                                "Fn::GetAtt": [
+                                    "UpdateTextTablePartitionsLambda",
                                     "Arn"
                                 ]
                             }
@@ -230,12 +335,12 @@
             },
             "Type": "AWS::S3::Bucket"
         },
-        "LambdaInvokePermission": {
+        "UpdateNumericTableInvokePermission": {
             "Properties": {
                 "Action": "lambda:InvokeFunction",
                 "FunctionName": {
                     "Fn::GetAtt": [
-                        "UpdateAthenaTablePartitionsLambda",
+                        "UpdateNumericTablePartitionsLambda",
                         "Arn"
                     ]
                 },
@@ -246,7 +351,7 @@
             },
             "Type": "AWS::Lambda::Permission"
         },
-        "UpdateAthenaTablePartitionsLambda": {
+        "UpdateNumericTablePartitionsLambda": {
             "Properties": {
                 "Code": {
                     "S3Bucket": {
@@ -286,7 +391,7 @@
                                         "Fn::FindInMap": [
                                             "Constants",
                                             "Athena",
-                                            "TableNamePrefix"
+                                            "NumericTableNamePrefix"
                                         ]
                                     },
                                     {
@@ -309,12 +414,107 @@
                             "Fn::FindInMap": [
                                 "Constants",
                                 "Buckets",
-                                "CuratedDatasetsDataPath"
+                                "CuratedDatasetsNumericDataPath"
                             ]
-                        }
+                        },
+                        "MARKERS_S3_PATH": "athena_markers/numeric"
                     }
                 },
-                "Handler": "lambdas.athena_partitions_lambda.lambda_handler",
+                "Handler": "source.athena_partitions_lambda.lambda_handler",
+                "Role": {
+                    "Ref": "AthenaTablePartitionLambdaRoleARN"
+                },
+                "Runtime": "python3.6",
+                "Timeout": 30
+            },
+            "Type": "AWS::Lambda::Function"
+        },
+        "UpdateTextTableInvokePermission": {
+            "Properties": {
+                "Action": "lambda:InvokeFunction",
+                "FunctionName": {
+                    "Fn::GetAtt": [
+                        "UpdateTextTablePartitionsLambda",
+                        "Arn"
+                    ]
+                },
+                "Principal": "s3.amazonaws.com",
+                "SourceArn": {
+                    "Fn::Sub": "arn:aws:s3:::${CuratedDatasetsBucketName}"
+                }
+            },
+            "Type": "AWS::Lambda::Permission"
+        },
+        "UpdateTextTablePartitionsLambda": {
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "RegionalLambdaBucketName"
+                    },
+                    "S3Key": "lambda_deployment_package.zip"
+                },
+                "Description": "Update Athena table partitions",
+                "Environment": {
+                    "Variables": {
+                        "ATHENA_DATABASE_NAME": {
+                            "Fn::FindInMap": [
+                                "Constants",
+                                "Athena",
+                                "DatabaseName"
+                            ]
+                        },
+                        "ATHENA_QUERY_RESULT_LOCATION_DIR": {
+                            "Fn::Sub": [
+                                "s3://${BucketNamePrefix}-${AWS::AccountId}-${AWS::Region}-${QSDeploymentSuffix}/athena-results",
+                                {
+                                    "BucketNamePrefix": {
+                                        "Fn::FindInMap": [
+                                            "Constants",
+                                            "Buckets",
+                                            "CuratedDatasetsNamePrefix"
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        "ATHENA_TABLE_NAME": {
+                            "Fn::Join": [
+                                "_",
+                                [
+                                    {
+                                        "Fn::FindInMap": [
+                                            "Constants",
+                                            "Athena",
+                                            "TextTableNamePrefix"
+                                        ]
+                                    },
+                                    {
+                                        "Ref": "QSDeploymentSuffix"
+                                    }
+                                ]
+                            ]
+                        },
+                        "ATHENA_TABLE_PARTITION_KEY_NAME": {
+                            "Fn::FindInMap": [
+                                "Constants",
+                                "Athena",
+                                "PartitionKeyName"
+                            ]
+                        },
+                        "FIREHOSE_DATA_BUCKET_NAME": {
+                            "Ref": "CuratedDatasetsBucketName"
+                        },
+                        "FIREHOSE_DATA_PREFIX": {
+                            "Fn::FindInMap": [
+                                "Constants",
+                                "Buckets",
+                                "CuratedDatasetsTextDataPath"
+                            ]
+                        },
+                        "MARKERS_S3_PATH": "athena_markers/text"
+                    }
+                },
+                "Handler": "source.athena_partitions_lambda.lambda_handler",
                 "Role": {
                     "Ref": "AthenaTablePartitionLambdaRoleARN"
                 },
@@ -349,7 +549,7 @@
                 ]
             }
         },
-        "AthenaTableName": {
+        "AthenaNumericTableName": {
             "Value": {
                 "Fn::Join": [
                     "_",
@@ -358,7 +558,26 @@
                             "Fn::FindInMap": [
                                 "Constants",
                                 "Athena",
-                                "TableNamePrefix"
+                                "NumericTableNamePrefix"
+                            ]
+                        },
+                        {
+                            "Ref": "QSDeploymentSuffix"
+                        }
+                    ]
+                ]
+            }
+        },
+        "AthenaTextTableName": {
+            "Value": {
+                "Fn::Join": [
+                    "_",
+                    [
+                        {
+                            "Fn::FindInMap": [
+                                "Constants",
+                                "Athena",
+                                "TextTableNamePrefix"
                             ]
                         },
                         {
