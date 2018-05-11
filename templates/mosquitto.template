@@ -83,37 +83,37 @@
     "Mappings": {
         "AWSAMIRegionMap": {
             "AMI": {
-                "AMZNLINUXHVM": "amzn2-ami-hvm-2017.12.0.20180115-x86_64-gp2"
-            },
-            "us-east-1": {
-                "AMZNLINUXHVM": "ami-428aa838"
-            },
-            "us-east-2": {
-                "AMZNLINUXHVM": "ami-710e2414"
-            },
-            "us-west-2": {
-                "AMZNLINUXHVM": "ami-7f43f307"
-            },
-            "eu-central-1": {
-                "AMZNLINUXHVM": "ami-1b2bb774"
-            },
-            "eu-west-1": {
-                "AMZNLINUXHVM": "ami-db1688a2"
-            },
-            "eu-west-2": {
-                "AMZNLINUXHVM": "ami-6d263d09"
-            },
-            "ap-southeast-1": {
-                "AMZNLINUXHVM": "ami-4f89f533"
-            },
-            "ap-southeast-2": {
-                "AMZNLINUXHVM": "ami-38708c5a"
+                "AMZNLINUXHVM": "amzn-ami-hvm-2018.03.0.20180412-x86_64-gp2"
             },
             "ap-northeast-1": {
-                "AMZNLINUXHVM": "ami-c2680fa4"
+                "AMZNLINUXHVM": "ami-28ddc154"
             },
             "ap-northeast-2": {
-                "AMZNLINUXHVM": "ami-3e04a450"
+                "AMZNLINUXHVM": "ami-efaf0181"
+            },
+            "ap-southeast-1": {
+                "AMZNLINUXHVM": "ami-64260718"
+            },
+            "ap-southeast-2": {
+                "AMZNLINUXHVM": "ami-60a26a02"
+            },
+            "eu-central-1": {
+                "AMZNLINUXHVM": "ami-1b316af0"
+            },
+            "eu-west-1": {
+                "AMZNLINUXHVM": "ami-9cbe9be5"
+            },
+            "eu-west-2": {
+                "AMZNLINUXHVM": "ami-c12dcda6"
+            },
+            "us-east-1": {
+                "AMZNLINUXHVM": "ami-467ca739"
+            },
+            "us-east-2": {
+                "AMZNLINUXHVM": "ami-976152f2"
+            },
+            "us-west-2": {
+                "AMZNLINUXHVM": "ami-6b8cef13"
             }
         }
     },
