@@ -1,7 +1,7 @@
 global:
   marketplace-ami: false
   owner: quickstart@amazon.com
-  qsname: aws-industrial-time-series-data-connector
+  qsname: quickstart-47lining-industrial-time-series-data-connector
   regions:
     - us-east-1
     - us-west-2
