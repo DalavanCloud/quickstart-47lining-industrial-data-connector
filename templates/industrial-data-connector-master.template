@@ -1,6 +1,6 @@
 {
     "AWSTemplateFormatVersion": "2010-09-09",
-    "Description": "Deploy OSIsoft PI System to AWS Connector Quick Start into new VPC. **WARNING** You will be billed for the AWS resources used if you create a stack from this template.",
+    "Description": "Deploy AWS Industrial Time Series Data Connector Quick Start into new VPC. **WARNING** You will be billed for the AWS resources used if you create a stack from this template.",
     "Metadata": {
         "AWS::CloudFormation::Interface": {
             "ParameterGroups": [
@@ -723,7 +723,7 @@
             },
             "Type": "AWS::CloudFormation::Stack"
         },
-        "Pi2AwsFoundationStack": {
+        "IDCFoundationStack": {
             "DependsOn": [
                 "VPCStack"
             ],
@@ -907,7 +907,7 @@
                     }
                 },
                 "TemplateURL": {
-                    "Fn::Sub": "https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/pi2aws.template"
+                    "Fn::Sub": "https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/industrial-data-connector.template"
                 }
             },
             "Type": "AWS::CloudFormation::Stack"
@@ -992,7 +992,7 @@
         "ManagementConsoleURL": {
             "Value": {
                 "Fn::GetAtt": [
-                    "Pi2AwsFoundationStack",
+                    "IDCFoundationStack",
                     "Outputs.ManagementConsoleURL"
                 ]
             },
@@ -1001,7 +1001,7 @@
         "ElasticsearchEndpoint": {
             "Value": {
                 "Fn::GetAtt": [
-                    "Pi2AwsFoundationStack",
+                    "IDCFoundationStack",
                     "Outputs.ElasticsearchEndpoint"
                 ]
             },
@@ -1010,7 +1010,7 @@
         "CuratedBucketName": {
             "Value": {
                 "Fn::GetAtt": [
-                    "Pi2AwsFoundationStack",
+                    "IDCFoundationStack",
                     "Outputs.CuratedBucketName"
                 ]
             },
@@ -1019,7 +1019,7 @@
         "PublishedBucketName": {
             "Value": {
                 "Fn::GetAtt": [
-                    "Pi2AwsFoundationStack",
+                    "IDCFoundationStack",
                     "Outputs.PublishedBucketName"
                 ]
             },
@@ -1028,7 +1028,7 @@
         "SubmissionsBucketName": {
             "Value": {
                 "Fn::GetAtt": [
-                    "Pi2AwsFoundationStack",
+                    "IDCFoundationStack",
                     "Outputs.SubmissionsBucketName"
                 ]
             },
@@ -1037,7 +1037,7 @@
         "KinesisStreamName": {
             "Value": {
                 "Fn::GetAtt": [
-                    "Pi2AwsFoundationStack",
+                    "IDCFoundationStack",
                     "Outputs.KinesisStreamName"
                 ]
             },

@@ -6,11 +6,9 @@
             "Type": "String"
         },
         "QSS3BucketName": {
-            "Default": "aws-quickstart",
             "Type": "String"
         },
         "QSS3KeyPrefix": {
-            "Default": "quickstart-osisoft-pisystem2aws-connector/",
             "Type": "String"
         },
         "RegionalLambdaBucketName": {

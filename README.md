@@ -1,4 +1,3 @@
-# quickstart-osisoft-pisystem2aws-connector
 ## AWS Industrial Time Series Data Connector on the AWS Cloud
 
 
