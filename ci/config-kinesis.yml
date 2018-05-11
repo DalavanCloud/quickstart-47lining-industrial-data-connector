@@ -12,6 +12,6 @@ tests:
     parameter_input: connector-test-kinesis.json
     template_file: industrial-data-connector-master.template
     regions:
-#      - us-east-1
-#      - us-west-2
+      - us-east-1
+      - us-west-2
       - eu-west-1
