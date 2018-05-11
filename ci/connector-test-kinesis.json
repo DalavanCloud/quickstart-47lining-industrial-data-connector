@@ -5,11 +5,11 @@
   },
   {
       "ParameterKey": "ConnectorAgentAssetsS3KeyPrefix",
-      "ParameterValue": "osisoft/agent/v3/"
+      "ParameterValue": "osisoft/agent/v2/"
   },
   {
       "ParameterKey": "QSDeploymentSuffix",
-      "ParameterValue": "qs"
+      "ParameterValue": "qskin"
   },
   {
       "ParameterKey": "RemoteAccessCIDR",
@@ -177,10 +177,10 @@
   },
   {
       "ParameterKey": "QSS3BucketName",
-      "ParameterValue": "osisoft-ireland-syncing-bucket"
+      "ParameterValue": "$[taskcat_autobucket]"
   },
   {
       "ParameterKey": "QSS3KeyPrefix",
-      "ParameterValue": "osisoft-amadeusz/qs-release/"
+      "ParameterValue": "aws-industrial-time-series-data-connector/"
   }
 ]

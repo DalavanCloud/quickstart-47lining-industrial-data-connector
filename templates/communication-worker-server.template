@@ -107,7 +107,7 @@
             },
             "us-west-2": {
                 "AMZNLINUXHVM": "ami-6b8cef13"
-            }
+            },
             "eu-central-1": {
                 "AMZNLINUXHVM": "ami-5652ce39"
             },
