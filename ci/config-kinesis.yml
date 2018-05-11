@@ -1,7 +1,7 @@
 global:
   marketplace-ami: false
   owner: quickstart@amazon.com
-  qsname: quickstart-industrial-time-series-data-connector
+  qsname: aws-industrial-time-series-data-connector
   regions:
     - us-east-1
     - us-west-2
@@ -10,7 +10,7 @@ global:
 tests:
   test-kinesis:
     parameter_input: connector-test-kinesis.json
-    template_file: pi2aws-master.template
+    template_file: industrial-data-connector-master.template
     regions:
       - us-east-1
       - us-west-2
