@@ -1,7 +1,7 @@
 ## AWS Industrial Time Series Data Connector on the AWS Cloud
 
 
-This Quick Start deploys the AWS Industrial Time Series Data Connector into your Amazon Web Services (AWS) account. TThe Industrial Time Series Data Connector synchronizes your on-premises systems to AWS to enable advanced analytics on your industrial process time series data. 
+This Quick Start deploys the AWS Industrial Time Series Data Connector into your Amazon Web Services (AWS) account. The Industrial Time Series Data Connector synchronizes your on-premises systems to AWS to enable advanced analytics on your industrial process time series data. 
 
 You can deploy the connector from your own AWS account in less than an hour. After deployment, you can establish near real-time managed feeds for selected data, get your data to Amazon Simple Storage Service (Amazon S3), keep it current, and explore and analyze your data with AWS analytics services such as Amazon Elasticsearch (Amazon ES) with Kibana and Amazon Kinesis.
 
