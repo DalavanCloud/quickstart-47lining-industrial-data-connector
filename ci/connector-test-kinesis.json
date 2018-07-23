@@ -45,7 +45,7 @@
   },
   {
       "ParameterKey": "ApplicationPassword",
-      "ParameterValue": "$[alfred_genpass_16]"
+      "ParameterValue": "$[taskcat_genpass_16]"
   },
   {
       "ParameterKey": "ElasticsearchNodeCount",
@@ -89,7 +89,7 @@
   },
   {
       "ParameterKey": "AFPassword",
-      "ParameterValue": "$[alfred_genpass_16]"
+      "ParameterValue": "$[taskcat_genpass_16]"
   },
   {
       "ParameterKey": "AFDomainName",
@@ -101,7 +101,7 @@
   },
   {
       "ParameterKey": "PIPassword",
-      "ParameterValue": "$[alfred_genpass_16]"
+      "ParameterValue": "$[taskcat_genpass_16]"
   },
   {
       "ParameterKey": "LicensedSoftwareS3BucketName",
@@ -169,7 +169,7 @@
   },
   {
       "ParameterKey": "RDSPassword",
-      "ParameterValue": "$[alfred_genpass_16]"
+      "ParameterValue": "$[taskcat_genpass_16]"
   },
   {
       "ParameterKey": "RDSUsername",
