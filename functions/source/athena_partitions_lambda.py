@@ -80,7 +80,6 @@ def is_partition_registered(partition_name):
     return len(markers) > 0 and markers[0].key == markers_prefix
 
 
-
 def lambda_handler(event, context):
     file_key = event['Records'][0]['s3']['object']['key']
     partition_path = extract_partition_path(file_key)

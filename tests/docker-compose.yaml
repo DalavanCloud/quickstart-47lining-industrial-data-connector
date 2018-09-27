@@ -1,0 +1,27 @@
+version: '2'
+services:
+    localstack:
+        image: localstack/localstack
+        ports:
+            - 4572:4572
+            - 4569:4569
+        environment:
+            - SERVICES=s3,dynamodb
+
+    locales:
+        image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.0.0
+        ports:
+            - 9200:9200
+        environment:
+            http.host: 0.0.0.0
+            transport.host: 127.0.0.1
+            ELASTIC_PASSWORD: password
+
+    postgres:
+        image: postgres:9.6.6
+        ports:
+            - "5432:5432"
+        command: "-c 'log_statement=all'"
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres

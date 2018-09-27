@@ -1,0 +1,256 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: This template deploys an ECS cluster to the provided VPC and subnets using an Auto Scaling Group
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t2.small
+  ClusterSize:
+    Type: Number
+    Default: 1
+  VPCCIDR:
+    Type: String
+  VPCID:
+    Type: AWS::EC2::VPC::Id
+  Subnets:
+    Description: Choose which subnets this ECS cluster should be deployed to
+    Type: List<AWS::EC2::Subnet::Id>
+  ECSInstanceProfile:
+    Type: String
+  UseCustomDockerRepository:
+    Type: String
+    AllowedValues:
+    - Yes
+    - No
+    Description: Indicates whether this deployment is a quickstart or not.
+  ManagementConsoleDockerTag:
+    Type: String
+  MosquittoBrokerDockerTag:
+    Type: String
+  ApiInstanceDockerTag:
+    Type: String
+  ConnectorType:
+    Type: String
+    AllowedValues:
+      - PI
+      - WONDERWARE
+      - KEPWARE
+  QSDeploymentSuffix:
+    AllowedPattern: '[a-z0-9]+'
+    ConstraintDescription: Deployment suffix can include numbers, lowercase letters
+      and should have the maximum length of 7 characters.
+    Default: qs
+    Description: You can deploy this Quick Start multiple times in the same region
+      if you provide a different suffix that is added to resource names to make them
+      unique per each deployment. Use this parameter to support deployment of production
+      and test environments in the same region in the same AWS account.
+    Type: String
+
+Mappings:
+  # Find the latest available at:
+  # http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+  AWSRegionToAMI:
+    us-east-1:
+      AMI: ami-aff65ad2 # latest as of 2018-04-26
+    us-east-2:
+      AMI: ami-64300001
+    us-west-1:
+      AMI: ami-69677709
+    us-west-2:
+      AMI: ami-40ddb938
+    eu-west-1:
+      AMI: ami-2d386654
+    eu-west-2:
+      AMI: ami-2218f945
+    eu-west-3:
+      AMI: ami-250eb858
+    eu-central-1:
+      AMI: ami-9fc39c74
+  QSManagementConsoleDockerSuffixes:
+    PI:
+      Suffix: 47lininghome/itsc-webui-pi:quickstart
+    KEPWARE:
+      Suffix: 47lininghome/itsc-webui-opc:quickstart
+    WONDERWARE:
+      Suffix: 47lininghome/itsc-webui-sql:quickstart
+
+Conditions:
+  UseCustomDockerRepositoryDeployment:
+    !Equals [!Ref UseCustomDockerRepository, Yes]
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ecs hosts
+      VpcId: !Ref VPCID
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: !Ref VPCCIDR
+        - IpProtocol: tcp
+          FromPort: '8883'
+          ToPort: '8883'
+          CidrIp: !Ref VPCCIDR
+        - IpProtocol: tcp
+          FromPort: '4000'
+          ToPort: '4000'
+          CidrIp: !Ref VPCCIDR
+        - IpProtocol: tcp
+          FromPort: '4005'
+          ToPort: '4005'
+          CidrIp: !Ref VPCCIDR
+
+  ECSAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Ref Subnets
+      LaunchConfigurationName: !Ref ECSLaunchConfiguration
+      MinSize: !Ref ClusterSize
+      MaxSize: !Ref ClusterSize
+      DesiredCapacity: !Ref ClusterSize
+      Tags:
+        - Key: Name
+          Value: !Sub ${ECSCluster} ECS host
+          PropagateAtLaunch: true
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1
+        MaxBatchSize: 1
+        PauseTime: PT15M
+        SuspendProcesses:
+          - HealthCheck
+          - ReplaceUnhealthy
+          - AZRebalance
+          - AlarmNotification
+          - ScheduledActions
+        WaitOnResourceSignals: true
+
+  ECSLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId:  !FindInMap [AWSRegionToAMI, !Ref 'AWS::Region', AMI]
+      InstanceType: !Ref InstanceType
+      SecurityGroups:
+        - !Ref ECSSecurityGroup
+      IamInstanceProfile: !Ref ECSInstanceProfile
+      UserData:
+        "Fn::Base64": !Sub |
+          #!/bin/bash
+          yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          yum install -y aws-cfn-bootstrap
+          /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSLaunchConfiguration
+          /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSAutoScalingGroup
+
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              awslogs: []
+
+          commands:
+            01_add_instance_to_cluster:
+              command: !Sub echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+          files:
+            "/etc/cfn/cfn-hup.conf":
+              mode: 000400
+              owner: root
+              group: root
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+
+            "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.ECSLaunchConfiguration.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSLaunchConfiguration
+
+            "/etc/awslogs/awscli.conf":
+              content: !Sub |
+                [plugins]
+                cwlogs = cwlogs
+                [default]
+                region = ${AWS::Region}
+
+            "/etc/awslogs/awslogs.conf":
+              content: !Sub |
+                [general]
+                state_file = /var/lib/awslogs/agent-state
+
+                [/var/log/dmesg]
+                file = /var/log/dmesg
+                log_group_name = ${ECSCluster}-/var/log/dmesg
+                log_stream_name = ${ECSCluster}
+
+                [/var/log/messages]
+                file = /var/log/messages
+                log_group_name = ${ECSCluster}-/var/log/messages
+                log_stream_name = ${ECSCluster}
+                datetime_format = %b %d %H:%M:%S
+
+                [/var/log/docker]
+                file = /var/log/docker
+                log_group_name = ${ECSCluster}-/var/log/docker
+                log_stream_name = ${ECSCluster}
+                datetime_format = %Y-%m-%dT%H:%M:%S.%f
+
+                [/var/log/ecs/ecs-init.log]
+                file = /var/log/ecs/ecs-init.log.*
+                log_group_name = ${ECSCluster}-/var/log/ecs/ecs-init.log
+                log_stream_name = ${ECSCluster}
+                datetime_format = %Y-%m-%dT%H:%M:%SZ
+
+                [/var/log/ecs/ecs-agent.log]
+                file = /var/log/ecs/ecs-agent.log.*
+                log_group_name = ${ECSCluster}-/var/log/ecs/ecs-agent.log
+                log_stream_name = ${ECSCluster}
+                datetime_format = %Y-%m-%dT%H:%M:%SZ
+
+                [/var/log/ecs/audit.log]
+                file = /var/log/ecs/audit.log.*
+                log_group_name = ${ECSCluster}-/var/log/ecs/audit.log
+                log_stream_name = ${ECSCluster}
+                datetime_format = %Y-%m-%dT%H:%M:%SZ
+
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+              awslogs:
+                enabled: true
+                ensureRunning: true
+                files:
+                  - /etc/awslogs/awslogs.conf
+                  - /etc/awslogs/awscli.conf
+
+Outputs:
+  ECSClusterARN:
+    Value: !GetAtt ECSCluster.Arn
+  ECSAutoScalingGroupName:
+    Value: !Ref ECSAutoScalingGroup
+  ManagementConsoleImageURI:
+    Value: !If [UseCustomDockerRepositoryDeployment, !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/management-console:${ManagementConsoleDockerTag}', !FindInMap [QSManagementConsoleDockerSuffixes, !Ref ConnectorType, Suffix]]
+    Export:
+      Name: !Sub 'awsitsdc-ManagementConsoleImageURI-${QSDeploymentSuffix}'
+  MosquittoImageURI:
+    Value: !If [UseCustomDockerRepositoryDeployment, !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/mosquitto-broker:${MosquittoBrokerDockerTag}', '47lininghome/itsc-mqtt-broker:quickstart']
+    Export:
+      Name: !Sub 'awsitsdc-MQTTBrokerImageURI-${QSDeploymentSuffix}'
+  ApiInstanceImageURI:
+    Value: !If [UseCustomDockerRepositoryDeployment, !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/api-instance:${ApiInstanceDockerTag}', '47lininghome/itsc-rest-api:quickstart']
+    Export:
+      Name: !Sub 'awsitsdc-ApiInstanceImageURI-${QSDeploymentSuffix}'

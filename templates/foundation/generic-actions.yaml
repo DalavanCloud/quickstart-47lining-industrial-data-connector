@@ -1,0 +1,24 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lambdas for performing generic actions: creating lambda trigger on S3
+  event'
+Parameters:
+  RegionalLambdaBucketName:
+    Type: String
+  CreateS3LambdaTriggerLambdaRoleARN:
+    Type: String
+Resources:
+  CreateS3LambdaTriggerLambda:
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Create lambda trigger on S3 event
+      Environment: {}
+      Handler: source.create_s3_lambda_trigger.lambda_handler
+      Role: !Ref 'CreateS3LambdaTriggerLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+    Type: AWS::Lambda::Function
+Outputs:
+  CreateS3LambdaTriggerLambdaARN:
+    Value: !GetAtt 'CreateS3LambdaTriggerLambda.Arn'

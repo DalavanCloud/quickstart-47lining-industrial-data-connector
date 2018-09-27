@@ -1,0 +1,137 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Cloudformation template to create EC2 instance and run server. **WARNING**
+  This template creates an Amazon EC2 instance. You will be billed for the AWS resources
+  used if you create a stack from this template.
+Parameters:
+  CommunicationWorkerLambdaRoleARN:
+    Type: String
+  VPCDestroyEniExecutionRoleARN:
+    Type: String
+  DataTransportService:
+    AllowedValues:
+      - AWS IoT
+      - Amazon Kinesis
+    Default: Amazon Kinesis
+    Description: Method that defines how data from feed server will be delivered to
+      AWS. You can AWS Kinesis or AWS IoT. Depending on your choice, enter values
+      for the parameters in one of the next two categories.
+    Type: String
+  VPCID:
+    Description: Worker Lambda VPC
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnet1ID:
+    Description: Worker Lambda subnet 1
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2ID:
+    Description: Worker Lambda subnet 2
+    Type: AWS::EC2::Subnet::Id
+  RegionalLambdaBucketName:
+    Description: Regional S3 bucket where tha lambda code will be stored
+    Type: String
+  RDSUri:
+    Description: RDS connection uri
+    Type: String
+    NoEcho: 'true'
+  ConnectorType:
+    Description: Connector type
+    Type: String
+Resources:
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref 'VPCID'
+      GroupDescription: LambdaSecurityGroup
+      SecurityGroupIngress: []
+  WorkerSQSLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Communication worker
+      Environment:
+        Variables:
+          REGION: !Sub '${AWS::Region}'
+          POSTGRES_URI: !Ref 'RDSUri'
+          OUTGOING_SQS_NAME: !GetAtt 'OutgoingQueue.QueueName'
+          SUBSCRIPTION_SQS_NAME: !GetAtt 'SubscriptionQueue.QueueName'
+          DTS: !Ref 'DataTransportService'
+          CONNECTOR_TYPE: !Ref ConnectorType
+      Handler: source.worker_sqs_lambda.lambda_handler
+      Role: !Ref 'CommunicationWorkerLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 300
+      MemorySize: 512
+      VpcConfig:
+          SecurityGroupIds:
+            - !Ref 'LambdaSecurityGroup'
+          SubnetIds:
+            - !Ref 'PrivateSubnet1ID'
+            - !Ref 'PrivateSubnet2ID'
+  EventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt 'OutgoingQueue.Arn'
+      FunctionName: !GetAtt 'WorkerSQSLambda.Arn'
+      BatchSize: 1
+      Enabled: 'true'
+  IncomingQueue:
+    Type: AWS::SQS::Queue
+  BackfillQueue:
+    Type: AWS::SQS::Queue
+  InterpolationQueue:
+    Type: AWS::SQS::Queue
+  SubscriptionQueue:
+    Type: AWS::SQS::Queue
+  OutgoingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 300
+  VPCDestroyENI:
+    Type: Custom::VPCDestroyENI
+    DependsOn: WorkerSQSLambda
+    Properties:
+      ServiceToken: !GetAtt VPCDestroyENIFunction.Arn
+      SecurityGroups: [!Ref LambdaSecurityGroup]
+  VPCDestroyENIFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: source.vpc_destroy_eni.handler
+      Role: !Ref VPCDestroyEniExecutionRoleARN
+      Timeout: 60
+      Runtime: python3.6
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+Outputs:
+  IncomingQueueURL:
+    Description: URL of Incoming SQS Queue
+    Value: !Ref 'IncomingQueue'
+  IncomingQueueName:
+    Description: Name IncomingQueue SQS Queue
+    Value: !GetAtt 'IncomingQueue.QueueName'
+  BackfillQueueURL:
+    Description: URL of incoming backfill queue
+    Value: !Ref 'BackfillQueue'
+  BackfillQueueName:
+    Description: Name of incoming backfill queue
+    Value: !GetAtt 'BackfillQueue.QueueName'
+  InterpolationQueueURL:
+    Description: URL of incoming interpolation queue
+    Value: !Ref 'InterpolationQueue'
+  InterpolationQueueName:
+    Description: Name of incoming interpolation queue
+    Value: !GetAtt 'InterpolationQueue.QueueName'
+  SubscriptionQueueURL:
+    Description: URL of incoming subscription queue
+    Value: !Ref 'SubscriptionQueue'
+  SubscriptionQueueName:
+    Description: Name of incoming subscription queue
+    Value: !GetAtt 'SubscriptionQueue.QueueName'
+  OutgoingQueueURL:
+    Description: URL of Outgoing SQS Queue
+    Value: !Ref 'OutgoingQueue'
+  OutgoingQueueName:
+    Description: Name OutgoingQueue SQS Queue
+    Value: !GetAtt 'OutgoingQueue.QueueName'

@@ -1,1 +1,5 @@
 development.ini
+app/resources/styles/main.css
+app/build
+app/src
+app/node_modules

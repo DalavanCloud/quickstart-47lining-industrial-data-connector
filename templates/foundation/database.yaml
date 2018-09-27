@@ -1,0 +1,168 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates a PostgreSQL RDS instance within a VPC.  **WARNING** This template
+  creates an Amazon RDS instance of the size and instance type that you specify. You
+  will be billed for the AWS resources used if you create a stack from this template.
+Parameters:
+  PrivateSubnet1ID:
+    Description: ID of the private subnet 1 that you want to provision the RDS instance
+      into (e.g., subnet-a0246dcd).
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2ID:
+    Description: ID of the private subnet 2 that you want to provision the RDS instance
+      into (e.g., subnet-e3246d8e).
+    Type: AWS::EC2::Subnet::Id
+  RDSDatabaseName:
+    Description: The name of the database created when the RDS instance is provisioned.
+    Type: String
+  RDSInstanceType:
+    AllowedValues:
+      - db.t2.micro
+      - db.t2.small
+      - db.t2.medium
+      - db.t2.large
+    Description: The type of the RDS instance that is being created.
+    Type: String
+  RDSPassword:
+    Description: 'The password that is associated with the master user account for
+      the RDS that is being created. Password must contain 8 to 64 printable ASCII
+      characters excluding: /, ", \'', \ and @. It must contain 1 uppercase letter,
+      1 lowercase letter, and 1 number.'
+    NoEcho: 'true'
+    Type: String
+  RDSUsername:
+    Description: The user name that is associated with the master user account for
+      the RDS that is being created. User name parameter must be lowercase, begin
+      with a letter, contain only alphanumeric characters or underscores, and be less
+      than 128 characters.
+    Type: String
+  VPCCIDR:
+    Description: CIDR block for your existing VPC.
+    Type: String
+  VPCID:
+    Description: ID of your existing VPC (e.g., vpc-0343606e).
+    Type: AWS::EC2::VPC::Id
+  RegionalLambdaBucketName:
+    Type: String
+  CreateTablesLambdaRoleARN:
+    Type: String
+  QSDeploymentSuffix:
+    Type: String
+  Region:
+    Type: String
+  BackupRetentionPeriod:
+    Type: String
+  ConnectorType:
+    Type: String
+Resources:
+  RDSInstance:
+    Properties:
+      AllocatedStorage: '10'
+      BackupRetentionPeriod: !Ref 'BackupRetentionPeriod'
+      DBInstanceClass: !Ref 'RDSInstanceType'
+      DBName: !Ref 'RDSDatabaseName'
+      DBSubnetGroupName: !Ref 'RDSSubnetGroup'
+      Engine: postgres
+      EngineVersion: 9.6.9
+      MasterUserPassword: !Ref 'RDSPassword'
+      MasterUsername: !Ref 'RDSUsername'
+      Port: '5432'
+      Tags:
+        - Key: Name
+          Value: OsisoftQuickstartRDS
+      VPCSecurityGroups:
+        - !Ref 'RDSSecurityGroup'
+    Type: AWS::RDS::DBInstance
+  RDSSecurityGroup:
+    Properties:
+      GroupDescription: Enable PostgreSQL port
+      SecurityGroupIngress:
+        - CidrIp: !Ref 'VPCCIDR'
+          FromPort: '5432'
+          IpProtocol: tcp
+          ToPort: '5432'
+      VpcId: !Ref 'VPCID'
+    Type: AWS::EC2::SecurityGroup
+  RDSSubnetGroup:
+    Properties:
+      DBSubnetGroupDescription: RDS subnet group
+      SubnetIds:
+        - !Ref 'PrivateSubnet1ID'
+        - !Ref 'PrivateSubnet2ID'
+    Type: AWS::RDS::DBSubnetGroup
+  CreateTablesLambda:
+    DependsOn:
+      - LambdaSecurityGroup
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Create tables
+      Environment:
+        Variables:
+          CONNECTOR_TYPE: !Ref 'ConnectorType'
+      Handler: source.setup_database_lambda.lambda_handler
+      Role: !Ref 'CreateTablesLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref 'LambdaSecurityGroup'
+        SubnetIds:
+          - !Ref 'PrivateSubnet1ID'
+          - !Ref 'PrivateSubnet2ID'
+  WriteSettingsToDatabaseLambda:
+    DependsOn:
+      - LambdaSecurityGroup
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Create tables
+      Handler: source.write_settings_to_database.lambda_handler
+      Role: !Ref 'CreateTablesLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref 'LambdaSecurityGroup'
+        SubnetIds:
+          - !Ref 'PrivateSubnet1ID'
+          - !Ref 'PrivateSubnet2ID'
+      Environment:
+        Variables:
+          CONNECTOR_TYPE: !Ref 'ConnectorType'
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref 'VPCID'
+      GroupDescription: LambdaSecurityGroup
+      SecurityGroupIngress: []
+  CreateTables:
+    Properties:
+      ServiceToken: !GetAtt 'CreateTablesLambda.Arn'
+      PostgresUri: !Sub
+        - postgresql://${RDSUsername}:${RDSPassword}@${Hostname}:${Port}/${RDSDatabaseName}
+        - Hostname: !GetAtt 'RDSInstance.Endpoint.Address'
+          Port: !GetAtt 'RDSInstance.Endpoint.Port'
+    Type: Custom::CreateTables
+  WriteSettingsToDatabase:
+    DependsOn:
+      - CreateTables
+    Properties:
+      ServiceToken: !GetAtt 'WriteSettingsToDatabaseLambda.Arn'
+      PostgresUri: !Sub
+        - postgresql://${RDSUsername}:${RDSPassword}@${Hostname}:${Port}/${RDSDatabaseName}
+        - Hostname: !GetAtt 'RDSInstance.Endpoint.Address'
+          Port: !GetAtt 'RDSInstance.Endpoint.Port'
+      QSDeploymentSuffix: !Ref 'QSDeploymentSuffix'
+      Region: !Ref 'Region'
+    Type: Custom::WriteSettingsToDatabase
+Outputs:
+  RDSHostname:
+    Description: RDS hostname
+    Value: !GetAtt 'RDSInstance.Endpoint.Address'
+  RDSPort:
+    Description: RDS port
+    Value: !GetAtt 'RDSInstance.Endpoint.Port'

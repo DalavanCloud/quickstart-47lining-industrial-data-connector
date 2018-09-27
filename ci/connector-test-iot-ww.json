@@ -1,0 +1,118 @@
+[
+  {
+    "ParameterKey": "ApplicationUser",
+    "ParameterValue": "ConsoleAdmin"
+  },
+  {
+    "ParameterKey": "RemoteAccessCIDR",
+    "ParameterValue": "1.1.1.1/1"
+  },
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "$[alfred_getkeypair]"
+  },
+  {
+    "ParameterKey": "AvailabilityZones",
+    "ParameterValue": "$[alfred_genaz_2]"
+  },
+  {
+    "ParameterKey": "VPCDefinition",
+    "ParameterValue": "QuickstartDefault"
+  },
+  {
+    "ParameterKey": "LogGroupNamePrefix",
+    "ParameterValue": "ConnectorLogGroup"
+  },
+  {
+    "ParameterKey": "DataTransportService",
+    "ParameterValue": "AWS IoT"
+  },
+  {
+    "ParameterKey": "ECSClusterSize",
+    "ParameterValue": "2"
+  },
+  {
+    "ParameterKey": "ElasticsearchNodeCount",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "ElasticsearchNodeType",
+    "ParameterValue": "t2.small.elasticsearch"
+  },
+  {
+    "ParameterKey": "ApplicationUser",
+    "ParameterValue": "ConsoleAdmin"
+  },
+  {
+    "ParameterKey": "ApplicationPassword",
+    "ParameterValue": "$[alfred_genpass_16]"
+  },
+  {
+    "ParameterKey": "QSDeploymentSuffix",
+    "ParameterValue": "qiotkp"
+  },
+  {
+    "ParameterKey": "QSS3BucketName",
+    "ParameterValue": "$[alfred_autobucket]"
+  },
+  {
+    "ParameterKey": "QSS3KeyPrefix",
+    "ParameterValue": "itsc-quickstart/"
+  },
+  {
+    "ParameterKey": "RDSUsername",
+    "ParameterValue": "rdsuser"
+  },
+  {
+    "ParameterKey": "RDSInstanceType",
+    "ParameterValue": "db.t2.micro"
+  },
+  {
+    "ParameterKey": "RDSPassword",
+    "ParameterValue": "$[alfred_genpass_16]"
+  },
+  {
+    "ParameterKey": "UseCustomDockerRepository",
+    "ParameterValue": "false"
+  },
+  {
+    "ParameterKey": "EnableS3LifecycleRules",
+    "ParameterValue": "yes"
+  },
+  {
+    "ParameterKey": "IATransitionPeriodInDays",
+    "ParameterValue": "90"
+  },
+  {
+    "ParameterKey": "GlacierTransitionPeriodInDays",
+    "ParameterValue": "365"
+  },
+  {
+    "ParameterKey": "MaxIndexAge",
+    "ParameterValue": "7"
+  },
+  {
+    "ParameterKey": "WonderwareDatabaseName",
+    "ParameterValue": "Runtime"
+  },
+  {
+    "ParameterKey": "WonderwareEndpoint",
+    "ParameterValue": "35.158.128.212"
+  },
+  {
+    "ParameterKey": "WonderwarePassword",
+    "ParameterValue": "qwerty123QWERTY"
+  },
+  {
+    "ParameterKey": "WonderwarePort",
+    "ParameterValue": "1433"
+  },
+  {
+    "ParameterKey": "WonderwareUsername",
+    "ParameterValue": "janon"
+  },
+  {
+    "ParameterKey": "MQTTTopicPrefix",
+    "ParameterValue": "ww"
+  }
+]

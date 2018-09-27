@@ -7,6 +7,7 @@ from source import cfnresponse
 key = crypto.PKey()
 log = logging.getLogger()
 
+
 def generate_key():
     log.info("Generating Key")
     key.generate_key(crypto.TYPE_RSA, 2048)

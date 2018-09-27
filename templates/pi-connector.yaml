@@ -1,0 +1,333 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Conditions:
+  UseIoT: !Equals
+    - !Ref 'DataTransportService'
+    - AWS IoT
+  UseKinesis: !Equals
+    - !Ref 'DataTransportService'
+    - Amazon Kinesis
+
+Mappings:
+  Constants:
+    Buckets:
+      CompiledAgentKeyPrefix: compiled-agent/
+      LicencedBinaryDestinationKeyPrefix: osisoft-binary/
+
+Description: Deploy PI Connector infrastructure. Includes PI Connector Agent and any required services.
+  **WARNING** You will be billed for the AWS resources used if you create a stack from this template.
+
+Parameters:
+  AFDomainName:
+    Type: String
+  AFPassword:
+    NoEcho: 'true'
+    Type: String
+  AFPort:
+    Default: 5457
+    Type: Number
+  AFServerIP:
+    AllowedPattern: ^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))?$
+    Type: String
+  AFUser:
+    Type: String
+  AsStructureDatabase:
+    Type: String
+  AuthType:
+    AllowedValues:
+      - WIS
+      - Explicit user and password
+    Default: WIS
+    Type: String
+  BackfillQueueURL:
+    Type: String
+  ConnectorAgentAssetsS3BucketName:
+    Type: String
+  ConnectorAgentAssetsS3KeyPrefix:
+    Type: String
+  ConnectorAgentInstanceProfileARN:
+    Type: String
+  ConnectorInstanceType:
+    AllowedValues:
+      - t2.small
+      - t2.medium
+      - t2.large
+      - m4.large
+      - m4.xlarge
+      - m4.2xlarge
+      - m4.4xlarge
+      - m4.10xlarge
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.12xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+    Default: t2.medium
+    Type: String
+  CopyLicencedBinaryLambdaRoleARN:
+    Type: String
+  CreateTablesLambdaRoleARN:
+    Type: String
+  CuratedDataBucketName:
+    Type: String
+  DataTransportService:
+    AllowedValues:
+      - AWS IoT
+      - Amazon Kinesis
+    Default: Amazon Kinesis
+    Type: String
+  DomainControllerServerIP:
+    AllowedPattern: ^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))?$
+    Type: String
+  ElasticsearchDomainEndpoint:
+    Type: String
+  IncomingQueueURL:
+    Type: String
+  InterpolationQueueURL:
+    Type: String
+  KeyName:
+    ConstraintDescription: Can contain only ASCII characters.
+    Type: AWS::EC2::KeyPair::KeyName
+  KinesisStreamName:
+    Type: String
+  LicensedSoftwareS3BucketName:
+    Type: String
+  LicensedSoftwareS3KeyPrefix:
+    Type: String
+  LogGroupName:
+    Type: String
+  LogsToElasticsearchRoleARN:
+    Type: String
+  MetricNamespaceName:
+    Type: String
+  MosquittoBrokerHost:
+    Type: String
+  MosquittoBrokerPort:
+    Type: Number
+  OutgoingQueueURL:
+    Type: String
+  PIPassword:
+    NoEcho: 'true'
+    Type: String
+  PIPort:
+    ConstraintDescription: PI Server port must be a valid number.
+    Default: 5450
+    Type: Number
+  PIServerIP:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$
+    ConstraintDescription: PI Server IP must be a valid IP address.
+    Type: String
+  PISubnetType:
+    AllowedValues:
+      - Public
+      - Private
+    Default: Public
+    Description: PI Connector Agent subnet type. It can be public or private. **WARNING**
+      Using private subnet for Connector Agent and VPN will not work together.
+    Type: String
+  PIUser:
+    Description: Name of the PI Data Archive user. Required only if Authentication
+      Method is set to "Explicit user and password".
+    Type: String
+  PostgresUri:
+    Type: String
+  PrivateSubnet1ID:
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2ID:
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnet1ID:
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnet2ID:
+    Type: AWS::EC2::Subnet::Id
+  QSDeploymentSuffix:
+    AllowedPattern: '[a-z0-9]+'
+    ConstraintDescription: Deployment suffix can include numbers, lowercase letters
+      and should have the maximum length of 7 characters.
+    Default: qs
+    MaxLength: 12
+    MinLength: 1
+    Type: String
+  QSS3BucketName:
+    Type: String
+  QSS3KeyPrefix:
+    Type: String
+  RegionalLambdaBucketARN:
+    Type: String
+  RegionalLambdaBucketName:
+    Type: String
+  RemoteAccessCIDR:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/x
+    Type: String
+  SubscriptionQueueURL:
+    Type: String
+  VPCCIDR:
+    Description: CIDR block for your existing VPC.
+    Type: String
+  VPCID:
+    Description: ID of your existing VPC (e.g., vpc-0343606e).
+    Type: AWS::EC2::VPC::Id
+  WISFQDN:
+    Default: ''
+    Type: String
+  WISPassword:
+    Default: ''
+    NoEcho: 'true'
+    Type: String
+  WISUser:
+    Default: ''
+    Type: String
+  AutoBackfillerLambdaRoleARN:
+    Type: String
+  SaveStatusLambdaRoleARN:
+    Type: String
+  BackfillQueueUrl:
+    Type: String
+  DbUsername:
+    Type: String
+  DbPassword:
+    Type: String
+  DbName:
+    Type: String
+  DbHost:
+    Type: String
+  VPCDestroyEniExecutionRoleARN:
+    Type: String
+Resources:
+  CopyConnectorSource:
+    Properties:
+      Parameters:
+        CompiledAgentKeyPrefix: !FindInMap
+          - Constants
+          - Buckets
+          - CompiledAgentKeyPrefix
+        ConnectorAgentAssetsS3BucketName: !Ref 'ConnectorAgentAssetsS3BucketName'
+        ConnectorAgentAssetsS3KeyPrefix: !Ref 'ConnectorAgentAssetsS3KeyPrefix'
+        CopyLicencedBinaryLambdaRoleARN: !Ref 'CopyLicencedBinaryLambdaRoleARN'
+        LicencedBinaryDestinationKeyPrefix: !FindInMap
+          - Constants
+          - Buckets
+          - LicencedBinaryDestinationKeyPrefix
+        LicensedSoftwareS3BucketName: !Ref 'LicensedSoftwareS3BucketName'
+        LicensedSoftwareS3KeyPrefix: !Ref 'LicensedSoftwareS3KeyPrefix'
+        RegionalLambdaBucketName: !Ref 'RegionalLambdaBucketName'
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/pi-copy-connector-binary.yaml'
+    Type: AWS::CloudFormation::Stack
+  Autobackfiller:
+    Properties:
+      Parameters:
+        AutoBackfillerLambdaRoleARN: !Ref 'AutoBackfillerLambdaRoleARN'
+        SaveStatusLambdaRoleARN: !Ref 'SaveStatusLambdaRoleARN'
+        VPCID: !Ref 'VPCID'
+        PrivateSubnet1ID: !Ref 'PrivateSubnet1ID'
+        PrivateSubnet2ID: !Ref 'PrivateSubnet2ID'
+        RegionalLambdaBucketName: !Ref 'RegionalLambdaBucketName'
+        StatusSNSTopic: !Ref StateSNSTopic
+        ElasticsearchHost: !Ref ElasticsearchDomainEndpoint
+        BackfillQueueUrl: !Ref BackfillQueueUrl
+        DbUsername: !Ref DbUsername
+        DbPassword: !Ref DbPassword
+        DbName: !Ref DbName
+        DbHost: !Ref DbHost
+        VPCDestroyEniExecutionRoleARN: !Ref VPCDestroyEniExecutionRoleARN
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/autobackfiller.yaml'
+    Type: AWS::CloudFormation::Stack
+  ConnectorAgent:
+    DependsOn:
+      - CopyConnectorSource
+    Properties:
+      Parameters:
+        AFDomainName: !Ref 'AFDomainName'
+        AFPassword: !Ref 'AFPassword'
+        AFPort: !Ref 'AFPort'
+        AFServerIP: !Ref 'AFServerIP'
+        AFUser: !Ref 'AFUser'
+        AuthType: !Ref 'AuthType'
+        BackfillQueueURL: !Ref 'BackfillQueueURL'
+        CompiledAgentKeyPrefix: !FindInMap
+          - Constants
+          - Buckets
+          - CompiledAgentKeyPrefix
+        ConnectorAgentInstanceProfileARN: !Ref 'ConnectorAgentInstanceProfileARN'
+        DataTransportService: !Ref 'DataTransportService'
+        DomainControllerServerIP: !Ref 'DomainControllerServerIP'
+        ElasticsearchDomainEndpoint: !Ref 'ElasticsearchDomainEndpoint'
+        IncomingQueueUrl: !Ref 'IncomingQueueURL'
+        InstanceType: !Ref 'ConnectorInstanceType'
+        InterpolationQueueURL: !Ref 'InterpolationQueueURL'
+        KeyName: !Ref 'KeyName'
+        KinesisStreamName: !Ref 'KinesisStreamName'
+        LicensedSoftwareS3KeyPrefix: !FindInMap
+          - Constants
+          - Buckets
+          - LicencedBinaryDestinationKeyPrefix
+        LogGroupName: !Ref 'LogGroupName'
+        LogsToElasticsearchRoleARN: !Ref 'LogsToElasticsearchRoleARN'
+        MetricNamespaceName: !Ref 'MetricNamespaceName'
+        MQTTBrokerHost: !Ref 'MosquittoBrokerHost'
+        MQTTBrokerPort: !Ref 'MosquittoBrokerPort'
+        MQTTTopicPrefix: !Sub '${PIServerIP}-${QSDeploymentSuffix}'
+        OutgoingQueueUrl: !Ref 'OutgoingQueueURL'
+        PIPassword: !Ref 'PIPassword'
+        PIPort: !Ref 'PIPort'
+        PIServerIP: !Ref 'PIServerIP'
+        PISubnetType: !Ref 'PISubnetType'
+        PIUser: !Ref 'PIUser'
+        PrivateSubnet1ID: !Ref 'PrivateSubnet1ID'
+        PrivateSubnet2ID: !Ref 'PrivateSubnet2ID'
+        PublicSubnet1ID: !Ref 'PublicSubnet1ID'
+        PublicSubnet2ID: !Ref 'PublicSubnet2ID'
+        QSDeploymentSuffix: !Ref 'QSDeploymentSuffix'
+        RegionalLambdaBucketARN: !Ref 'RegionalLambdaBucketARN'
+        RegionalLambdaBucketName: !Ref 'RegionalLambdaBucketName'
+        RemoteAccessCIDR: !Ref 'RemoteAccessCIDR'
+        SubscriptionQueueURL: !Ref 'SubscriptionQueueURL'
+        VPCCIDR: !Ref 'VPCCIDR'
+        VpcId: !Ref 'VPCID'
+        WISFQDN: !Ref 'WISFQDN'
+        WISPassword: !Ref 'WISPassword'
+        WISUser: !Ref 'WISUser'
+        StateTopicARN: !Ref 'StateSNSTopic'
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/pi-connector-agent.yaml'
+    Type: AWS::CloudFormation::Stack
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref 'VPCID'
+      GroupDescription: LambdaSecurityGroup
+      SecurityGroupIngress: []
+  WriteAsStructureToDatabaseLambda:
+    DependsOn:
+      - LambdaSecurityGroup
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Create tables
+      Handler: source.write_as_structure_to_database.lambda_handler
+      Role: !Ref 'CreateTablesLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref 'LambdaSecurityGroup'
+        SubnetIds:
+          - !Ref 'PrivateSubnet1ID'
+          - !Ref 'PrivateSubnet2ID'
+      Environment:
+        Variables:
+          CONNECTOR_TYPE: 'PI'
+  WriteSettingsToDatabase:
+    Properties:
+      AsStructureDatabase: !Ref 'AsStructureDatabase'
+      ServiceToken: !GetAtt 'WriteAsStructureToDatabaseLambda.Arn'
+      PostgresUri: !Ref 'PostgresUri'
+    Type: Custom::WriteAsStructureToDatabase
+  StateSNSTopic:
+    Type: AWS::SNS::Topic

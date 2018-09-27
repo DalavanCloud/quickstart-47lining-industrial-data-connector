@@ -1,6 +1,6 @@
 from setuptools import setup
 
 setup(
-    name='pi2aws',
+    name='itsdc-assets',
     version='1.0',
 )

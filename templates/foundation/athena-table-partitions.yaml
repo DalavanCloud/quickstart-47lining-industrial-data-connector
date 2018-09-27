@@ -1,0 +1,282 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lambda for updating Athena table partitions. **WARNING** This template
+  creates an Amazon S3 Buckets and Lambda resources. You will be billed for the AWS
+  resources used if you create a stack from this template.
+Parameters:
+  AthenaTablePartitionLambdaRoleARN:
+    Type: String
+  AthenaTableLambdaRoleARN:
+    Type: String
+  ConnectorType:
+    Type: String
+  CreateS3LambdaTriggerLambdaARN:
+    Type: String
+  CuratedDataBucketName:
+    Type: String
+  DataTransportService:
+    Type: String
+  QSDeploymentSuffix:
+    AllowedPattern: '[a-z0-9]+'
+    ConstraintDescription: Deployment suffix can include numbers, lowercase letters
+      and should have the maximum length of 7 characters.
+    Default: qs
+    Description: You can deploy this Quick Start multiple times in the same region
+      if you provide a different suffix that is added to resource names to make them
+      unique per each deployment. Use this parameter to support deployment of production
+      and test environments in the same region in the same AWS account.
+    MaxLength: 12
+    MinLength: 1
+    Type: String
+  RegionalLambdaBucketName:
+    Type: String
+Mappings:
+  Constants:
+    Buckets:
+      AsTableDataPath: as_structure_sync/
+      AthenaResultBucketNamePrefix: athena-query-results
+      CuratedDatasetsDataPath: data/
+      CuratedDatasetsNumericDataPath: data/numeric/
+      CuratedDatasetsTextDataPath: data/text/
+    Athena:
+      AsDataTableNamePrefix: as_data
+      AsStaticAttributesTableNamePrefix: as_static_attributes
+      DatabaseName: default
+      NumericTableNamePrefix: managed_feeds_numeric
+      TextTableNamePrefix: managed_feeds_text
+      PartitionKeyName: dt
+Resources:
+  AthenaTableAsDataLambda:
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Create Athena AS Data Table
+      Handler: source.create_athena_as_data_table_lambda.lambda_handler
+      Role: !Ref 'AthenaTableLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+    Type: AWS::Lambda::Function
+  AthenaTableLambda:
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Create Athena table applications
+      Environment:
+        Variables:
+          DATA_TRANSPORT_SERVICE: !Ref 'DataTransportService'
+          CONNECTOR_TYPE: !Ref ConnectorType
+      Handler: source.create_athena_table_lambda.lambda_handler
+      Role: !Ref 'AthenaTableLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+    Type: AWS::Lambda::Function
+  CreateAsDataTable:
+    Properties:
+      ServiceToken: !GetAtt 'AthenaTableAsDataLambda.Arn'
+      AthenaDatabaseName: !FindInMap
+        - Constants
+        - Athena
+        - DatabaseName
+      AthenaTableName: !Join
+        - _
+        - - !FindInMap
+            - Constants
+            - Athena
+            - AsDataTableNamePrefix
+          - !Ref 'QSDeploymentSuffix'
+      AthenaQueryOutputLocationDir: !Sub 's3://${CuratedDataBucketName}/athena-results'
+      S3DataLocationDir: !Sub 's3://${CuratedDataBucketName}/as_table'
+      StaticAttributesAthenaTableName: !Join
+        - _
+        - - !FindInMap
+            - Constants
+            - Athena
+            - AsStaticAttributesTableNamePrefix
+          - !Ref 'QSDeploymentSuffix'
+      StaticAttributesS3DataLocationDir: !Sub 's3://${CuratedDataBucketName}/as_static_attributes_table'
+    Type: Custom::CreateAsDataTable
+  CreateManagedFeedsNumericTable:
+    Properties:
+      ServiceToken: !GetAtt 'AthenaTableLambda.Arn'
+      AthenaDatabaseName: !FindInMap
+        - Constants
+        - Athena
+        - DatabaseName
+      AthenaQueryOutputLocationDir: !Sub 's3://${CuratedDataBucketName}/athena-results'
+      S3DataLocationDir: !Join
+        - ''
+        - - s3://
+          - !Ref 'CuratedDataBucketName'
+          - /
+          - !FindInMap
+            - Constants
+            - Buckets
+            - CuratedDatasetsNumericDataPath
+      AthenaTableName: !Join
+        - _
+        - - !FindInMap
+            - Constants
+            - Athena
+            - NumericTableNamePrefix
+          - !Ref 'QSDeploymentSuffix'
+      ManagedFeedType: DOUBLE
+    Type: Custom::CreateAthenaNumericTable
+  CreateManagedFeedsTextTable:
+    Properties:
+      ServiceToken: !GetAtt 'AthenaTableLambda.Arn'
+      AthenaDatabaseName: !FindInMap
+        - Constants
+        - Athena
+        - DatabaseName
+      AthenaQueryOutputLocationDir: !Sub 's3://${CuratedDataBucketName}/athena-results'
+      S3DataLocationDir: !Join
+        - ''
+        - - s3://
+          - !Ref 'CuratedDataBucketName'
+          - /
+          - !FindInMap
+            - Constants
+            - Buckets
+            - CuratedDatasetsTextDataPath
+      AthenaTableName: !Join
+        - _
+        - - !FindInMap
+            - Constants
+            - Athena
+            - TextTableNamePrefix
+          - !Ref 'QSDeploymentSuffix'
+      ManagedFeedType: STRING
+    Type: Custom::CreateAthenaTextTable
+  AthenaAttachS3NotificationsNumeric:
+    Properties:
+      Bucket: !Ref 'CuratedDataBucketName'
+      Prefix: !FindInMap
+        - Constants
+        - Buckets
+        - CuratedDatasetsNumericDataPath
+      LambdaARN: !GetAtt 'UpdateNumericTablePartitionsLambda.Arn'
+      Events:
+        - s3:ObjectCreated:*
+      ServiceToken: !Ref 'CreateS3LambdaTriggerLambdaARN'
+    Type: Custom::AthenaAttachS3NotificationsNumeric
+  AthenaAttachS3NotificationsText:
+    DependsOn:
+      - AthenaAttachS3NotificationsNumeric
+    Properties:
+      Bucket: !Ref 'CuratedDataBucketName'
+      Prefix: !FindInMap
+        - Constants
+        - Buckets
+        - CuratedDatasetsTextDataPath
+      LambdaARN: !GetAtt 'UpdateTextTablePartitionsLambda.Arn'
+      Events:
+        - s3:ObjectCreated:*
+      ServiceToken: !Ref 'CreateS3LambdaTriggerLambdaARN'
+    Type: Custom::AthenaAttachS3NotificationsText
+  UpdateNumericTableInvokePermission:
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt 'UpdateNumericTablePartitionsLambda.Arn'
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub 'arn:aws:s3:::${CuratedDataBucketName}'
+    Type: AWS::Lambda::Permission
+  UpdateNumericTablePartitionsLambda:
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Update Athena table partitions
+      Environment:
+        Variables:
+          ATHENA_DATABASE_NAME: !FindInMap
+            - Constants
+            - Athena
+            - DatabaseName
+          ATHENA_QUERY_RESULT_LOCATION_DIR: !Sub 's3://${CuratedDataBucketName}/athena-results'
+          ATHENA_TABLE_NAME: !Join
+            - _
+            - - !FindInMap
+                - Constants
+                - Athena
+                - NumericTableNamePrefix
+              - !Ref 'QSDeploymentSuffix'
+          ATHENA_TABLE_PARTITION_KEY_NAME: !FindInMap
+            - Constants
+            - Athena
+            - PartitionKeyName
+          FIREHOSE_DATA_BUCKET_NAME: !Ref 'CuratedDataBucketName'
+          FIREHOSE_DATA_PREFIX: !FindInMap
+            - Constants
+            - Buckets
+            - CuratedDatasetsNumericDataPath
+          MARKERS_S3_PATH: athena_markers/numeric
+      Handler: source.athena_partitions_lambda.lambda_handler
+      Role: !Ref 'AthenaTablePartitionLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+    Type: AWS::Lambda::Function
+  UpdateTextTableInvokePermission:
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt 'UpdateTextTablePartitionsLambda.Arn'
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub 'arn:aws:s3:::${CuratedDataBucketName}'
+    Type: AWS::Lambda::Permission
+  UpdateTextTablePartitionsLambda:
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Update Athena table partitions
+      Environment:
+        Variables:
+          ATHENA_DATABASE_NAME: !FindInMap
+            - Constants
+            - Athena
+            - DatabaseName
+          ATHENA_QUERY_RESULT_LOCATION_DIR: !Sub 's3://${CuratedDataBucketName}/athena-results'
+          ATHENA_TABLE_NAME: !Join
+            - _
+            - - !FindInMap
+                - Constants
+                - Athena
+                - TextTableNamePrefix
+              - !Ref 'QSDeploymentSuffix'
+          ATHENA_TABLE_PARTITION_KEY_NAME: !FindInMap
+            - Constants
+            - Athena
+            - PartitionKeyName
+          FIREHOSE_DATA_BUCKET_NAME: !Ref 'CuratedDataBucketName'
+          FIREHOSE_DATA_PREFIX: !FindInMap
+            - Constants
+            - Buckets
+            - CuratedDatasetsTextDataPath
+          MARKERS_S3_PATH: athena_markers/text
+      Handler: source.athena_partitions_lambda.lambda_handler
+      Role: !Ref 'AthenaTablePartitionLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+    Type: AWS::Lambda::Function
+Outputs:
+  AthenaDatabaseName:
+    Value: !FindInMap
+      - Constants
+      - Athena
+      - DatabaseName
+  AthenaNumericTableName:
+    Value: !Join
+      - _
+      - - !FindInMap
+          - Constants
+          - Athena
+          - NumericTableNamePrefix
+        - !Ref 'QSDeploymentSuffix'
+  AthenaTextTableName:
+    Value: !Join
+      - _
+      - - !FindInMap
+          - Constants
+          - Athena
+          - TextTableNamePrefix
+        - !Ref 'QSDeploymentSuffix'

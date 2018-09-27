@@ -4,7 +4,7 @@ from io import BytesIO
 
 from botocore.exceptions import ClientError
 
-from utils.pi_points_s3 import iter_pi_points_from_s3
+from utils.feeds_s3 import iter_feeds_from_s3
 
 logger = logging.getLogger()
 
@@ -23,8 +23,8 @@ class SchedulingManager(object):
     """
     TARGET_ID = 'SCHEDULE_MANAGER'
 
-    AF_SYNC_LAMBDA_KEY = 'AF_SYNC_LAMBDA_ARN'
-    PI_POINTS_SYNC_LAMBDA_KEY = 'PI_POINTS_SYNC_LAMBDA_KEY'
+    AS_SYNC_LAMBDA_KEY = 'AS_SYNC_LAMBDA_ARN'
+    FEEDS_SYNC_LAMBDA_KEY = 'FEEDS_SYNC_LAMBDA_KEY'
     INTERPOLATION = 'INTERPOLATION_LAMBDA_ARN'
 
     def __init__(self, event_client=None, lambda_arns=None, s3_resource=None, s3_rule_bucket=None,
@@ -35,38 +35,37 @@ class SchedulingManager(object):
         self.s3_rule_bucket = s3_rule_bucket
         self.s3_rule_bucket_key_prefix = s3_rule_bucket_key_prefix
 
-    def create_af_sync_schedule(self, cron_expr, af_struct_manager_payload, rule_name):
+    def create_as_sync_schedule(self, cron_expr, as_struct_manager_payload, rule_name):
         """
-        Schedule AF structure update
+        Schedule asset structure update
 
-        Determine lambda function by the name, prepare arguments for af sync lambda and create a schedule
+        Determine lambda function by the name, prepare arguments for AS sync lambda and create a schedule
         """
-        af_sync_lambda_arn = self.lambda_arns[self.AF_SYNC_LAMBDA_KEY]
-        lambda_input = self._create_af_sync_lambda_input(af_struct_manager_payload)
+        as_sync_lambda_arn = self.lambda_arns[self.AS_SYNC_LAMBDA_KEY]
+        lambda_input = self._create_as_sync_lambda_input(as_struct_manager_payload)
 
-        return self._create_schedule(rule_name, af_sync_lambda_arn, cron_expr, lambda_input)
+        return self._create_schedule(rule_name, as_sync_lambda_arn, cron_expr, lambda_input)
 
-    def create_pi_points_sync_schedule(self, cron_expr, pi_points_manager_payload, rule_name):
+    def create_feeds_sync_schedule(self, cron_expr, feeds_manager_payload, rule_name):
         """
-        Schedule Pi Points sync
+        Schedule feeds sync
 
         :param cron_expr:
-        :param pi_points_manager_payload:
+        :param feeds_manager_payload:
         :param rule_name:
         :return:
         """
-        pi_points_sync_lambda_arn = self.lambda_arns[self.PI_POINTS_SYNC_LAMBDA_KEY]
-        lambda_input = self._create_pi_points_sync_lambda_input(pi_points_manager_payload)
+        feeds_sync_lambda_arn = self.lambda_arns[self.FEEDS_SYNC_LAMBDA_KEY]
+        lambda_input = self._create_feeds_sync_lambda_input(feeds_manager_payload)
 
-        return self._create_schedule(rule_name, pi_points_sync_lambda_arn, cron_expr, lambda_input)
+        return self._create_schedule(rule_name, feeds_sync_lambda_arn, cron_expr, lambda_input)
 
-
-    def get_af_sync_rule_names(self):
-        target = self.lambda_arns[self.AF_SYNC_LAMBDA_KEY]
+    def get_as_sync_rule_names(self):
+        target = self.lambda_arns[self.AS_SYNC_LAMBDA_KEY]
         return self._get_rule_names_by_target(target)
 
-    def get_pi_points_sync_rule_names(self):
-        target = self.lambda_arns[self.PI_POINTS_SYNC_LAMBDA_KEY]
+    def get_feeds_sync_rule_names(self):
+        target = self.lambda_arns[self.FEEDS_SYNC_LAMBDA_KEY]
         return self._get_rule_names_by_target(target)
 
     def get_rule_parameters_by_rule_name(self, rule_name, fetch_feed=False):
@@ -115,28 +114,28 @@ class SchedulingManager(object):
             raise cse_exception from e
 
     @staticmethod
-    def _create_af_sync_lambda_input(af_lambda_payload):
+    def _create_as_sync_lambda_input(as_lambda_payload):
         lambda_input = {
-            's3_bucket': af_lambda_payload['s3_bucket'],
-            'database': af_lambda_payload['database']
+            's3_bucket': as_lambda_payload['s3_bucket'],
+            'database': as_lambda_payload['database']
         }
         return json.dumps(lambda_input)
 
     @staticmethod
-    def _create_pi_points_sync_lambda_input(pi_points_lambda_payload):
+    def _create_feeds_sync_lambda_input(feeds_lambda_payload):
         lambda_input = {
-            's3_bucket': pi_points_lambda_payload['s3_bucket']
+            's3_bucket': feeds_lambda_payload['s3_bucket']
         }
         return json.dumps(lambda_input)
 
-    def _create_backfill_lambda_input(self, backfill_payload, pi_points_s3_key):
+    def _create_backfill_lambda_input(self, backfill_payload, feeds_s3_key):
         lambda_input = {
             'query_syntax': backfill_payload['query_syntax'],
             'query': backfill_payload.get('query'),
             'request_from': backfill_payload.get('request_from'),
             'request_to': backfill_payload.get('request_to'),
-            'pi_points_s3_bucket': self.s3_rule_bucket,
-            'pi_points_s3_key': pi_points_s3_key,
+            'feeds_s3_bucket': self.s3_rule_bucket,
+            'feeds_s3_key': feeds_s3_key,
         }
         return json.dumps(lambda_input)
 
@@ -145,7 +144,7 @@ class SchedulingManager(object):
         # TODO
         pass
 
-    def _create_interpolation_input(self, interpolation_payload, pi_points_s3_key):
+    def _create_interpolation_input(self, interpolation_payload, feeds_s3_key):
         lambda_input = {
             'query_syntax': interpolation_payload['query_syntax'],
             'interval': interpolation_payload['interval'],
@@ -153,8 +152,8 @@ class SchedulingManager(object):
             'query': interpolation_payload.get('query'),
             'request_from': interpolation_payload.get('request_from'),
             'request_to': interpolation_payload.get('request_to'),
-            'pi_points_s3_bucket': self.s3_rule_bucket,
-            'pi_points_s3_key': pi_points_s3_key,
+            'feeds_s3_bucket': self.s3_rule_bucket,
+            'feeds_s3_key': feeds_s3_key,
         }
         return json.dumps(lambda_input)
 
@@ -187,46 +186,46 @@ class SchedulingManager(object):
 
         return target_parameters
 
-    def _dump_backfill_pi_points_to_s3(self, backfill_payload, rule_name):
-        pi_points = backfill_payload['feeds']
-        return self._dump_pi_points_to_s3(pi_points, 'backfill', rule_name)
+    def _dump_backfill_feeds_to_s3(self, backfill_payload, rule_name):
+        feeds = backfill_payload['feeds']
+        return self._dump_feeds_to_s3(feeds, 'backfill', rule_name)
 
-    def _dump_interpolation_pi_points_to_s3(self, interpolation_payload, rule_name):
-        pi_points = interpolation_payload['feeds']
-        return self._dump_pi_points_to_s3(pi_points, 'interpolation', rule_name)
+    def _dump_interpolation_feeds_to_s3(self, interpolation_payload, rule_name):
+        feeds = interpolation_payload['feeds']
+        return self._dump_feeds_to_s3(feeds, 'interpolation', rule_name)
 
-    def _dump_pi_points_to_s3(self, pi_points, dir_suffix, rule_name):
+    def _dump_feeds_to_s3(self, feeds, dir_suffix, rule_name):
         try:
-            s3_obj = self._create_pi_point_s3_object(dir_suffix, rule_name)
-            self._save_pi_point_to_s3(pi_points, s3_obj)
+            s3_obj = self._create_feed_s3_object(dir_suffix, rule_name)
+            self._save_feed_to_s3(feeds, s3_obj)
             return s3_obj.key
         except ClientError as e:
-            except_msg = 'Cannot dump pi points to s3 bucket {} for rule name {}. The reason: {}"'.format(
+            except_msg = 'Cannot dump feeds to s3 bucket {} for rule name {}. The reason: {}"'.format(
                 self.s3_rule_bucket, rule_name, e.response['Error']['Message']
             )
             cse_exception = CreateScheduleException(except_msg)
             logger.exception(cse_exception)
             raise cse_exception from e
 
-    def _create_pi_point_s3_object(self, dir_suffix, rule_name):
+    def _create_feed_s3_object(self, dir_suffix, rule_name):
         s3_key = '/'.join([self.s3_rule_bucket_key_prefix, dir_suffix, rule_name]).lstrip('/')
         return self.s3_resource.Object(self.s3_rule_bucket, s3_key)
 
-    def _save_pi_point_to_s3(self, pi_points, s3_object):
-        pi_points_file_obj = self._get_pi_points_fileobj(pi_points)
+    def _save_feed_to_s3(self, feeds, s3_object):
+        feeds_file_obj = self._get_feeds_fileobj(feeds)
 
         s3_object.upload_fileobj(
-            Fileobj=pi_points_file_obj
+            Fileobj=feeds_file_obj
         )
 
     @staticmethod
-    def _get_pi_points_fileobj(pi_points):
-        pi_points_bytes = b'\n'.join(map(str.encode, pi_points))
-        pi_points_file_obj = BytesIO(pi_points_bytes)
-        pi_points_file_obj.seek(0)
-        return pi_points_file_obj
+    def _get_feeds_fileobj(feeds):
+        feeds_bytes = b'\n'.join(map(str.encode, feeds))
+        feeds_file_obj = BytesIO(feeds_bytes)
+        feeds_file_obj.seek(0)
+        return feeds_file_obj
 
     @staticmethod
     def _get_target_feeds_from_s3(target_parameters):
-        s3_bucket, s3_key = target_parameters['pi_points_s3_bucket'], target_parameters['pi_points_s3_key']
-        return list(iter_pi_points_from_s3(s3_bucket, s3_key))
+        s3_bucket, s3_key = target_parameters['feeds_s3_bucket'], target_parameters['feeds_s3_key']
+        return list(iter_feeds_from_s3(s3_bucket, s3_key))

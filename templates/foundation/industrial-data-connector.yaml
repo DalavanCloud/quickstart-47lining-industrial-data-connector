@@ -1,0 +1,825 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Conditions:
+  UseIoT: !Equals
+    - !Ref 'DataTransportService'
+    - AWS IoT
+  UseKinesis: !Equals
+    - !Ref 'DataTransportService'
+    - Amazon Kinesis
+Description: Deploy Industrial Data Connector Quick Start into existing VPC. **WARNING**
+  You will be billed for the AWS resources used if you create a stack from this template.
+Mappings:
+  Constants:
+    Buckets:
+      AthenaResultBucketNamePrefix: athena-query-results
+      LicencedBinaryDestinationKeyPrefix: licenced/
+    RDS:
+      RDSDatabaseName: connector
+      RDSBackupRetentionPeriod: 1
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Network Configuration
+        Parameters:
+          - RemoteAccessCIDR
+          - AvailabilityZones
+          - VPCCIDR
+          - VPCID
+          - PrivateSubnet1ID
+          - PrivateSubnet2ID
+          - PublicSubnet1ID
+          - PublicSubnet2ID
+      - Label:
+          default: Licensed 3rd-party Software Installers Configuration
+        Parameters:
+          - LicensedSoftwareS3BucketName
+          - ConnectorAgentAssetsS3BucketName
+      - Label:
+          default: ECS cluster configuration
+        Parameters:
+          - ECSClusterSize
+          - ECSInstanceType
+      - Label:
+          default: Connector Agent Configuration
+        Parameters:
+          - LogGroupNamePrefix
+          - MetricNamespaceNamePrefix
+          - ConnectorType
+      - Label:
+          default: Management Console Configuration
+        Parameters:
+          - ApplicationUser
+          - ApplicationPassword
+      - Label:
+          default: RDS Configuration
+        Parameters:
+          - RDSUsername
+          - RDSPassword
+          - RDSInstanceType
+      - Label:
+          default: Connector Supporting Infrastructure Configuration
+        Parameters:
+          - DataTransportService
+      - Label:
+          default: Kinesis Configuration
+        Parameters:
+          - KinesisStreamsShardsCount
+      - Label:
+          default: IoT Configuration
+        Parameters:
+          - IoTMetricNamespacePrefix
+          - IoTCreateIndividualLogs
+          - MQTTTopicPrefix
+      - Label:
+          default: Elasticsearch Configuration
+        Parameters:
+          - MaxIndexAge
+          - ElasticsearchNodeCount
+          - ElasticsearchNodeType
+          - ElasticsearchVolumeSize
+      - Label:
+          default: S3 Lifecycle Management
+        Parameters:
+          - EnableS3LifecycleRules
+          - IATransitionPeriodInDays
+          - GlacierTransitionPeriodInDays
+      - Label:
+          default: AWS Quick Start Configuration
+        Parameters:
+          - QSS3BucketName
+          - QSS3KeyPrefix
+          - QSDeploymentSuffix
+      - Label:
+          default: Docker Tags
+        Parameters:
+          - ManagementConsoleDockerTag
+          - ApiInstanceDockerTag
+          - MosquittoBrokerDockerTag
+    ParameterLabels:
+      ApplicationPassword:
+        default: Management Console Password
+      ApplicationUser:
+        default: Management Console User Name
+      AvailabilityZones:
+        default: Availability Zones
+      ConnectorAgentAssetsS3BucketName:
+        default: Connector Agent Assets S3 Bucket Name
+      ConnectorInstanceType:
+        default: Connector Agent Instance Type
+      ConnectorType:
+        default: Connector Type
+      DomainControllerServerIP:
+        default: Domain Controller Server IP
+      ECSClusterSize:
+        default: Number of instances in ECS cluster
+      ECSInstanceType:
+        default: Type of instances in ECS cluster
+      ElasticsearchNodeCount:
+        default: Elasticsearch Node Count
+      ElasticsearchNodeType:
+        default: Elasticsearch Node Type
+      ElasticsearchVolumeSize:
+        default: Size of EBS volume in Gigabytes
+      RDSInstanceType:
+        default: RDS Instance Type
+      RDSPassword:
+        default: RDS Password
+      RDSUsername:
+        default: RDS User Name
+      EnableS3LifecycleRules:
+        default: Enable S3 Lifecycle
+      GlacierTransitionPeriodInDays:
+        default: Glacier Transition Period
+      IATransitionPeriodInDays:
+        default: IA Transition Period
+      KinesisStreamsShardsCount:
+        default: Kinesis Streams Shards Count
+      LicensedSoftwareS3BucketName:
+        default: Licensed Software S3 Bucket Name
+      LogGroupNamePrefix:
+        default: Log Group Name Prefix
+      MaxIndexAge:
+        default: Days to Live
+      MetricNamespaceNamePrefix:
+        default: Metric Namespace Name Prefix
+      MQTTTopicPrefix:
+        default: Prefix for MQTT topic in IoT deployment
+      IoTMetricNamespacePrefix:
+        default: IoT Metric Namespace Name Prefix
+      IoTCreateIndividualLogs:
+        Type: String
+      PrivateSubnet1ID:
+        default: Existing VPC Private Subnet 1 ID
+      PrivateSubnet2ID:
+        default: Existing VPC Private Subnet 2 ID
+      PublicSubnet1ID:
+        default: Existing VPC Public Subnet 1 ID
+      PublicSubnet2ID:
+        default: Existing VPC Public Subnet 2 ID
+      QSDeploymentSuffix:
+        default: Quick Start Deployment Suffix
+      QSS3BucketName:
+        default: Quick Start S3 Bucket Name
+      QSS3KeyPrefix:
+        default: Quick Start S3 Key Prefix
+      RemoteAccessCIDR:
+        default: Remote Access CIDR
+      DataTransportService:
+        default: Data transport service
+      VPCCIDR:
+        default: Existing VPC CIDR
+      VPCID:
+        default: Existing VPC ID
+Parameters:
+  ApplicationPassword:
+    AllowedPattern: ^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])[A-Za-z0-9!#$%&()*+,.:;<=>?\[\]^_`{|}~-]*$
+    Description: 'User password for the Management Console. The password must contain
+      8 to 64 printable ASCII characters, excluding: /, ", '', \ and @, and must contain
+      1 uppercase letter, 1 lowercase letter, and 1 number.'
+    MaxLength: 64
+    MinLength: 8
+    NoEcho: 'true'
+    Type: String
+  ApplicationUser:
+    AllowedPattern: ^[\x00-\x7F]*$
+    ConstraintDescription: User name must contain 1 to 64 ASCII characters.
+    Default: ConsoleAdmin
+    Description: The user name for the Management Console, consisting of 1-64 ASCII
+      characters.
+    MaxLength: '64'
+    MinLength: '1'
+    Type: String
+  AvailabilityZones:
+    Description: The list of Availability Zones to use for the subnets in the VPC.
+      You must specify two Availability Zones. By default, the Quick Start preserves
+      the logical order you specify.
+    Type: List<AWS::EC2::AvailabilityZone::Name>
+  ConnectorAgentAssetsS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: S3 bucket name can include numbers, lowercase letters,
+      uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
+    Default: aws-quickstart-datasets
+    Description: S3 bucket where Connector Agent sources are installed. The bucket
+      name can include numbers, lowercase letters, uppercase letters, and hyphens,
+      but should not start or end with a hyphen.
+    Type: String
+  DataTransportService:
+    AllowedValues:
+      - AWS IoT
+      - Amazon Kinesis
+    Default: Amazon Kinesis
+    Description: Method that defines how data from feed server will be delivered to
+      AWS. You can AWS Kinesis or AWS IoT. Depending on your choice, enter values
+      for the parameters in one of the next two categories.
+    Type: String
+  ECSClusterSize:
+    Description: Number of instances in ECS cluster
+    Default: 1
+    Type: Number
+  ECSInstanceType:
+    AllowedValues:
+      - t2.small
+      - t2.medium
+      - t2.large
+      - m4.large
+      - m4.xlarge
+      - m4.2xlarge
+      - m4.4xlarge
+      - m4.10xlarge
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.12xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+    Default: t2.small
+    Description: Type of instances in ECS cluster
+    Type: String
+  ElasticsearchNodeCount:
+    Default: '1'
+    Description: The number of nodes in the Elasticsearch cluster.
+    Type: Number
+  ElasticsearchNodeType:
+    AllowedValues:
+      - t2.small.elasticsearch
+      - m4.large.elasticsearch
+      - m4.xlarge.elasticsearch
+      - c4.large.elasticsearch
+      - c4.xlarge.elasticsearch
+      - r4.large.elasticsearch
+      - r4.xlarge.elasticsearch
+    ConstraintDescription: must be a valid Elasticsearch node type.
+    Default: t2.small.elasticsearch
+    Description: The node type to be provisioned for the Elasticsearch cluster.
+    Type: String
+  ElasticsearchVolumeSize:
+    Default: 10
+    Description: Size of EBS volume in Gigabytes
+    Type: Number
+  EnableS3LifecycleRules:
+    AllowedValues:
+      - 'yes'
+      - 'no'
+    Default: 'yes'
+    Description: Set to no if you want to disable Amazon S3 lifecycle rules. For more
+      information, see the Amazon S3 documentation.
+    Type: String
+  GlacierTransitionPeriodInDays:
+    Default: 365
+    Description: Number of days after which data is transitioned to Amazon Glacier.
+    Type: Number
+  IATransitionPeriodInDays:
+    Default: 90
+    Description: Number of days after which data is transitioned to infrequent access
+      (IA) in Amazon S3. For more information, see the Amazon S3 documentation.
+    Type: Number
+  KinesisStreamsShardsCount:
+    Default: 2
+    Description: The number of Kinesis Data Streams shards to provision for the feed
+      data stream. For guidance, see the Amazon Kinesis Data Streams documentation.
+    MinValue: 1
+    Type: Number
+  LicensedSoftwareS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: S3 bucket bucket name can include numbers, lowercase letters,
+      uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
+    Default: aws-quickstart-datasets
+    Description: S3 bucket where the Microsoft and OSIsoft licensed software (.NET
+      Framework, PI AF Client SDK) are installed. The bucket name can include numbers,
+      lowercase letters, uppercase letters, and hyphens, but should not start or end
+      with a hyphen.
+    Type: String
+  LogGroupNamePrefix:
+    Default: ConnectorLogGroup
+    Description: Name of the Amazon CloudWatch log group for metric filters.
+    Type: String
+  MaxIndexAge:
+    Default: 7
+    Description: The number of days after which managed feeds are removed from Amazon
+      ES. Data is permanently stored in Amazon S3.
+    Type: Number
+  MetricNamespaceNamePrefix:
+    Default: ConnectorMetricNamespace
+    Description: Namespace name for the metric filters.
+    Type: String
+  MQTTTopicPrefix:
+    Description: Prefix for MQTT topic name in IoT deployment
+    Type: String
+  IoTMetricNamespacePrefix:
+    Default: IoTMetricNamespacePrefix
+    Description: Name of the metrics namespace for monitoring update rate for feeds
+      values
+    Type: String
+  IoTCreateIndividualLogs:
+    AllowedValues:
+      - 'Yes'
+      - 'No'
+    Description: Whether each managed feed should be monitored by a separate metric
+      in CloudWatch. Note that enabling this option will noticeably increase the cost
+      of the deployment.
+    Default: 'No'
+    Type: String
+  PrivateSubnet1ID:
+    Description: ID of the private subnet 1 in Availability Zone 1 (e.g., subnet-a0246dcd)
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2ID:
+    Description: ID of the private subnet 2 in Availability Zone 2 (e.g., subnet-a0246dcd)
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnet1ID:
+    Description: ID of the public subnet 1 in Availability Zone 1 (e.g., subnet-a0246dcd)
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnet2ID:
+    Description: ID of the public subnet 2 in Availability Zone 2 (e.g., subnet-a0246dcd)
+    Type: AWS::EC2::Subnet::Id
+  QSDeploymentSuffix:
+    AllowedPattern: '[a-z0-9]+'
+    ConstraintDescription: Deployment suffix can include numbers, lowercase letters
+      and should have the maximum length of 7 characters.
+    Default: qs
+    Description: You can deploy this Quick Start multiple times in the same AWS Region
+      if you provide a different suffix with each launch. This suffix is added to
+      resource names to make them unique for each deployment. Use this parameter to
+      support the deployment of production and test environments in the same AWS Region
+      and in the same AWS account. The suffix is a 1-7 character string that contains
+      numbers and lowercase letters.
+    MaxLength: 12
+    MinLength: 1
+    Type: String
+  QSS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: Quick Start bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Default: aws-quickstart
+    Description: S3 bucket where the Quick Start templates and scripts are installed.
+      Use this parameter to specify the S3 bucket name you've created for your copy
+      of Quick Start assets, if you decide to customize or extend the Quick Start
+      for your own use. The bucket name can include numbers, lowercase letters, uppercase
+      letters, and hyphens, but should not start or end with a hyphen.
+    Type: String
+  QSS3KeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-][0-9a-zA-Z-/]*/$
+    ConstraintDescription: Quick Start key prefix can include numbers, lowercase letters,
+      uppercase letters, hyphens (-), and forward slash (/).
+    Default: quickstart-osisoft-pisystem2aws-connector/
+    Description: The S3 key name prefix used to simulate a folder for your copy of
+      Quick Start assets, if you decide to customize or extend the Quick Start for
+      your own use. This prefix can include numbers, lowercase letters, uppercase
+      letters, hyphens, and forward slashes.
+    Type: String
+  RemoteAccessCIDR:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/x
+    Description: The CIDR IP range that is permitted to access the OSIsoft PI System
+      to AWS Connector software. We recommend that you set this value to a trusted
+      IP range. For example, you might want to grant only your corporate network access
+      to the software. You can use http://checkip.amazonaws.com/ to check your IP
+      address. This parameter must be in the form x.x.x.x/x (e.g., 96.127.8.12/32,
+      YOUR_IP/32).
+    Type: String
+  VPCCIDR:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+    Description: CIDR block for the VPC.
+    Type: String
+  VPCID:
+    Description: ID of your existing VPC (e.g., vpc-0343606e).
+    Type: AWS::EC2::VPC::Id
+  RDSInstanceType:
+    AllowedValues:
+      - db.t2.micro
+      - db.t2.small
+      - db.t2.medium
+      - db.t2.large
+    Default: db.t2.small
+    Description: The type of the RDS instance that is being created.
+    Type: String
+  RDSPassword:
+    AllowedPattern: ^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])[A-Za-z0-9!#$%&()*+,.:;<=>?\[\]^_`{|}~-]*$
+    ConstraintDescription: 'Password must contain 8 to 64 printable ASCII characters
+      excluding: /, ", \'', \ and @. It must contain 1 uppercase letter, 1 lowercase
+      letter, and 1 number.'
+    Description: 'The password that is associated with the master user account for
+      the RDS that is being created. Password must contain 8 to 64 printable ASCII
+      characters excluding: /, ", \'', \ and @. It must contain 1 uppercase letter,
+      1 lowercase letter, and 1 number.'
+    MaxLength: '64'
+    MinLength: '8'
+    NoEcho: 'true'
+    Type: String
+  RDSUsername:
+    AllowedPattern: ^[a-z][a-z0-9_]*$
+    ConstraintDescription: User name parameter must be lowercase, begin with a letter,
+      contain only alphanumeric characters or underscores, and be less than 128 characters.
+    Default: rdsuser
+    Description: The user name that is associated with the master user account for
+      the RDS that is being created. User name parameter must be lowercase, begin
+      with a letter, contain only alphanumeric characters or underscores, and be less
+      than 128 characters.
+    MaxLength: '128'
+    MinLength: '1'
+    Type: String
+  ConnectorType:
+    Type: String
+    Default: PI
+    AllowedValues:
+      - PI
+      - WONDERWARE
+      - KEPWARE
+  ManagementConsoleDockerTag:
+    Type: String
+    Default: latest
+  ApiInstanceDockerTag:
+    Type: String
+    Default: latest
+  MosquittoBrokerDockerTag:
+    Type: String
+    Default: latest
+  UseCustomDockerRepository:
+    Type: String
+    AllowedValues:
+    - Yes
+    - No
+    Description: Indicates whether this deployment is a quickstart or not.
+Resources:
+  AthenaPartitionsStack:
+    DependsOn:
+      - CopyLambdaDeploymentStack
+    Properties:
+      Parameters:
+        AthenaTableLambdaRoleARN: !GetAtt 'IAMStack.Outputs.AthenaTableLambdaRoleARN'
+        AthenaTablePartitionLambdaRoleARN: !GetAtt 'IAMStack.Outputs.AthenaTablePartitionLambdaRoleARN'
+        CreateS3LambdaTriggerLambdaARN: !GetAtt 'GenericActionsStack.Outputs.CreateS3LambdaTriggerLambdaARN'
+        CuratedDataBucketName: !GetAtt 'S3DataBucketsStack.Outputs.CuratedDataBucketName'
+        DataTransportService: !Ref 'DataTransportService'
+        QSDeploymentSuffix: !Ref 'QSDeploymentSuffix'
+        RegionalLambdaBucketName: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketName'
+        ConnectorType: !Ref ConnectorType
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/athena-table-partitions.yaml'
+    Type: AWS::CloudFormation::Stack
+  CognitoStack:
+    Properties:
+      Parameters:
+        AdminUsername: !Ref 'ApplicationUser'
+        AdminPassword: !Ref 'ApplicationPassword'
+        CreateCognitoAdminRoleARN: !GetAtt 'IAMStack.Outputs.CreateCognitoAdminRoleARN'
+        QSDeploymentSuffix: !Ref 'QSDeploymentSuffix'
+        RegionalLambdaBucketName: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketName'
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/cognito.yaml'
+    Type: AWS::CloudFormation::Stack
+  CommunicationWorkerLambdaStack:
+    Properties:
+      Parameters:
+        CommunicationWorkerLambdaRoleARN: !GetAtt 'IAMStack.Outputs.CommunicationWorkerLambdaRoleARN'
+        ConnectorType: !Ref 'ConnectorType'
+        DataTransportService: !Ref 'DataTransportService'
+        VPCID: !Ref 'VPCID'
+        PrivateSubnet1ID: !Ref 'PrivateSubnet1ID'
+        PrivateSubnet2ID: !Ref 'PrivateSubnet2ID'
+        RegionalLambdaBucketName: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketName'
+        RDSUri:
+          !Sub
+            - 'postgresql://${RDSUsername}:${RDSPassword}@${DatabaseStack.Outputs.RDSHostname}:${DatabaseStack.Outputs.RDSPort}/${RDSDatabaseName}'
+            - { RDSDatabaseName: !FindInMap [Constants, RDS, RDSDatabaseName] }
+        VPCDestroyEniExecutionRoleARN: !GetAtt 'IAMStack.Outputs.VPCDestroyEniExecutionRoleARN'
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/communication-worker-lambda.yaml'
+    Type: AWS::CloudFormation::Stack
+  CopyLambdaDeploymentStack:
+    Properties:
+      Parameters:
+        CopyLambdaDeploymentRoleARN: !GetAtt 'IAMStack.Outputs.CopyLambdaDeploymentRoleARN'
+        QSS3BucketName: !Ref 'QSS3BucketName'
+        QSS3KeyPrefix: !Ref 'QSS3KeyPrefix'
+        RegionalLambdaBucketName: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketName'
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/copy-lambda-deployment.yaml'
+    Type: AWS::CloudFormation::Stack
+  DatabaseStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/database.yaml'
+      Parameters:
+        PrivateSubnet1ID: !Ref 'PrivateSubnet1ID'
+        PrivateSubnet2ID: !Ref 'PrivateSubnet2ID'
+        RDSDatabaseName: !FindInMap [Constants, RDS, RDSDatabaseName]
+        RDSInstanceType: !Ref 'RDSInstanceType'
+        RDSUsername: !Ref 'RDSUsername'
+        RDSPassword: !Ref 'RDSPassword'
+        VPCCIDR: !Ref 'VPCCIDR'
+        VPCID: !Ref 'VPCID'
+        RegionalLambdaBucketName: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketName'
+        CreateTablesLambdaRoleARN: !GetAtt 'IAMStack.Outputs.CreateTablesLambdaRoleARN'
+        QSDeploymentSuffix: !Ref 'QSDeploymentSuffix'
+        Region: !Ref 'AWS::Region'
+        BackupRetentionPeriod: !FindInMap [Constants, RDS, RDSBackupRetentionPeriod]
+        ConnectorType: !Ref 'ConnectorType'
+    DependsOn:
+      - CopyLambdaDeploymentStack
+  ECSStack:
+    Properties:
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/ecs.yaml'
+      Parameters:
+        InstanceType: !Ref 'ECSInstanceType'
+        ClusterSize: !Ref 'ECSClusterSize'
+        VPCCIDR: !Ref 'VPCCIDR'
+        VPCID: !Ref 'VPCID'
+        Subnets: !Join
+          - ','
+          - - !Ref 'PrivateSubnet1ID'
+            - !Ref 'PrivateSubnet2ID'
+        ECSInstanceProfile: !GetAtt 'IAMStack.Outputs.ECSInstanceProfile'
+        UseCustomDockerRepository: !Ref UseCustomDockerRepository
+        ManagementConsoleDockerTag: !Ref ManagementConsoleDockerTag
+        MosquittoBrokerDockerTag: !Ref MosquittoBrokerDockerTag
+        ApiInstanceDockerTag: !Ref ApiInstanceDockerTag
+        ConnectorType: !Ref ConnectorType
+        QSDeploymentSuffix: !Ref QSDeploymentSuffix
+    Type: AWS::CloudFormation::Stack
+  GenericActionsStack:
+    DependsOn:
+      - CopyLambdaDeploymentStack
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/generic-actions.yaml'
+      Parameters:
+        RegionalLambdaBucketName: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketName'
+        CreateS3LambdaTriggerLambdaRoleARN: !GetAtt 'IAMStack.Outputs.CreateS3LambdaTriggerLambdaRoleARN'
+  GenericPeriodicActionsStack:
+    DependsOn:
+      - CopyLambdaDeploymentStack
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/generic-periodic-actions.yaml'
+      Parameters:
+        IncomingQueueName: !GetAtt 'CommunicationWorkerLambdaStack.Outputs.IncomingQueueName'
+        RegionalLambdaBucketName: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketName'
+        GenericPeriodicLambdaRoleARN: !GetAtt 'IAMStack.Outputs.GenericPeriodicLambdaRoleARN'
+        CleanEventsLambdaRoleARN: !GetAtt 'IAMStack.Outputs.CleanEventsLambdaRoleARN'
+        RDSUri:
+          !Sub
+        - 'postgresql://${RDSUsername}:${RDSPassword}@${DatabaseStack.Outputs.RDSHostname}:${DatabaseStack.Outputs.RDSPort}/${RDSDatabaseName}'
+        - {
+            RDSDatabaseName: !FindInMap [Constants, RDS, RDSDatabaseName]
+          }
+        PrivateSubnet1ID: !Ref 'PrivateSubnet1ID'
+        PrivateSubnet2ID: !Ref 'PrivateSubnet2ID'
+        VPCID: !Ref 'VPCID'
+        MetricNamespaceName: !Sub '${MetricNamespaceNamePrefix}-${QSDeploymentSuffix}'
+        ConnectorType: !Ref 'ConnectorType'
+  ElasticsearchCleanLambdaStack:
+    DependsOn:
+      - CopyLambdaDeploymentStack
+    Properties:
+      Parameters:
+        ElasticsearchEndpoint: !GetAtt 'ElasticsearchStack.Outputs.DomainEndpoint'
+        ElasticsearchIndexCleanLambdaRoleARN: !GetAtt 'IAMStack.Outputs.ElasticsearchIndexCleanLambdaRoleARN'
+        IndexPrefix: managed_feeds
+        MaxIndexAge: !Ref 'MaxIndexAge'
+        RegionalLambdaBucketName: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketName'
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/elasticsearch-clean-lambda.yaml'
+    Type: AWS::CloudFormation::Stack
+  ElasticsearchStack:
+    Properties:
+      Parameters:
+        ElasticsearchAccessCIDR: !Ref 'RemoteAccessCIDR'
+        ElasticsearchNodeCount: !Ref 'ElasticsearchNodeCount'
+        ElasticsearchNodeType: !Ref 'ElasticsearchNodeType'
+        ElasticsearchVolumeSize: !Ref 'ElasticsearchVolumeSize'
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/elasticsearch.yaml'
+    Type: AWS::CloudFormation::Stack
+  IAMStack:
+    Properties:
+      Parameters:
+        DataTransportService: !Ref 'DataTransportService'
+        ConnectorAgentAssetsS3BucketName: !Ref 'ConnectorAgentAssetsS3BucketName'
+        ConnectorLogGroupName: !Sub '${LogGroupNamePrefix}-${QSDeploymentSuffix}'
+        CuratedDatasetsBucketName: !GetAtt 'S3DataBucketsStack.Outputs.CuratedDataBucketName'
+        LicensedSoftwareS3BucketName: !Ref 'LicensedSoftwareS3BucketName'
+        PublishedDataBucketName: !GetAtt 'S3DataBucketsStack.Outputs.PublishedDataBucketName'
+        QSS3BucketName: !Ref 'QSS3BucketName'
+        RegionalLambdaBucketARN: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketARN'
+        ConnectorType: !Ref 'ConnectorType'
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/iam.yaml'
+    Type: AWS::CloudFormation::Stack
+  IoTStack:
+    Condition: UseIoT
+    DependsOn:
+      - IAMStack
+      - ElasticsearchStack
+    Properties:
+      Parameters:
+        ConnectorType: !Ref ConnectorType
+        MetricNamespaceName: !Sub '${IoTMetricNamespacePrefix}-${QSDeploymentSuffix}'
+        CreateIndividualLogs: !Ref 'IoTCreateIndividualLogs'
+        DataBucketName: !GetAtt 'S3DataBucketsStack.Outputs.CuratedDataBucketName'
+        ElasticsearchEndpoint: !GetAtt 'ElasticsearchStack.Outputs.DomainEndpoint'
+        GenerateCSRLambdaRoleARN: !GetAtt 'IAMStack.Outputs.GenerateCSRLambdaRoleARN'
+        DeactivateCertificateLambdaRoleARN: !GetAtt 'IAMStack.Outputs.DeactivateCertificateLambdaRoleARN'
+        CreateIoTRulesLambdaRoleARN: !GetAtt 'IAMStack.Outputs.CreateIoTRulesLambdaRoleARN'
+        IoTRuleRoleArn: !GetAtt 'IAMStack.Outputs.IotRulesRoleARN'
+        Server: !Ref 'MQTTTopicPrefix'
+        QSDeploymentSuffix: !Ref 'QSDeploymentSuffix'
+        RegionalLambdaBucketName: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketName'
+        RegisterKibanaDashboardRoleARN: !GetAtt 'IAMStack.Outputs.RegisterKibanaDashboardRoleARN'
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/iot.yaml'
+    Type: AWS::CloudFormation::Stack
+  APIInstanceStack:
+    Properties:
+      Parameters:
+        AsSynchronizationLambdaARN: !GetAtt 'GenericPeriodicActionsStack.Outputs.AsSynchronizationLambdaARN'
+        FeedsSynchronizationLambdaARN: !GetAtt 'GenericPeriodicActionsStack.Outputs.FeedsSynchronizationLambdaARN'
+        AthenaDatabaseName: !GetAtt 'AthenaPartitionsStack.Outputs.AthenaDatabaseName'
+        AthenaNumericTableName: !GetAtt 'AthenaPartitionsStack.Outputs.AthenaNumericTableName'
+        AthenaTextTableName: !GetAtt 'AthenaPartitionsStack.Outputs.AthenaTextTableName'
+        BackfillQueueName: !GetAtt 'CommunicationWorkerLambdaStack.Outputs.BackfillQueueName'
+        CognitoUserPoolId: !GetAtt 'CognitoStack.Outputs.CognitoUserPoolId'
+        CognitoUserPoolAppClientId: !GetAtt 'CognitoStack.Outputs.CognitoAppClientId'
+        CognitoClientSecret: !GetAtt 'CognitoStack.Outputs.CognitoClientSecret'
+        CuratedDatasetsBucketName: !GetAtt 'S3DataBucketsStack.Outputs.CuratedDataBucketName'
+        DataTransportService: !Ref 'DataTransportService'
+        ECSCluster: !GetAtt 'ECSStack.Outputs.ECSClusterARN'
+        ECSTaskExecutionRoleARN: !GetAtt 'IAMStack.Outputs.ECSTaskExecutionRoleARN'
+        IncomingQueueName: !GetAtt 'CommunicationWorkerLambdaStack.Outputs.IncomingQueueName'
+        InterpolationQueueName: !GetAtt 'CommunicationWorkerLambdaStack.Outputs.InterpolationQueueName'
+        APIInstanceRoleARN: !GetAtt 'IAMStack.Outputs.APIInstanceRoleARN'
+        PublicSubnet1ID: !Ref 'PublicSubnet1ID'
+        PublicSubnet2ID: !Ref 'PublicSubnet2ID'
+        PublishedDataBucketName: !GetAtt 'S3DataBucketsStack.Outputs.PublishedDataBucketName'
+        QSDeploymentSuffix: !Ref 'QSDeploymentSuffix'
+        SubscriptionQueueName: !GetAtt 'CommunicationWorkerLambdaStack.Outputs.SubscriptionQueueName'
+        VPCCIDR: !Ref 'VPCCIDR'
+        VpcId: !Ref 'VPCID'
+        RDSUri:
+          !Sub
+        - 'postgresql://${RDSUsername}:${RDSPassword}@${DatabaseStack.Outputs.RDSHostname}:${DatabaseStack.Outputs.RDSPort}/${RDSDatabaseName}'
+        - {
+            RDSDatabaseName: !FindInMap [Constants, RDS, RDSDatabaseName]
+          }
+        ConnectorType: !Ref 'ConnectorType'
+        ApiInstanceDockerTag: !Ref ApiInstanceDockerTag
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/api-instance.yaml'
+    Type: AWS::CloudFormation::Stack
+  ManagementConsoleStack:
+    Properties:
+      Parameters:
+        APIEndpointURL: !GetAtt 'APIInstanceStack.Outputs.APIEndpoint'
+        ECSCluster: !GetAtt 'ECSStack.Outputs.ECSClusterARN'
+        ECSTaskExecutionRoleARN: !GetAtt 'IAMStack.Outputs.ECSTaskExecutionRoleARN'
+        ManagementConsoleRoleARN: !GetAtt 'IAMStack.Outputs.ManagementConsoleRoleARN'
+        PublicSubnet1ID: !Ref 'PublicSubnet1ID'
+        PublicSubnet2ID: !Ref 'PublicSubnet2ID'
+        QSDeploymentSuffix: !Ref 'QSDeploymentSuffix'
+        VpcId: !Ref 'VPCID'
+        RegionalLambdaBucketName: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketName'
+        GenerateAppSecretLambdaRoleARN: !GetAtt 'IAMStack.Outputs.GenerateAppSecretLambdaRoleARN'
+        ConnectorType: !Ref ConnectorType
+        ManagementConsoleDockerTag: !Ref ManagementConsoleDockerTag
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/management-console.yaml'
+    Type: AWS::CloudFormation::Stack
+  MosquittoBrokerStack:
+    Condition: UseIoT
+    Properties:
+      Parameters:
+        ECSCluster: !GetAtt 'ECSStack.Outputs.ECSClusterARN'
+        ECSTaskExecutionRoleARN: !GetAtt 'IAMStack.Outputs.ECSTaskExecutionRoleARN'
+        IoTCertificateID: !GetAtt 'IoTStack.Outputs.IoTCertificateID'
+        MosquittoBrokerRoleARN: !GetAtt 'IAMStack.Outputs.MosquittoBrokerRoleARN'
+        Server: !Ref 'MQTTTopicPrefix'
+        PrivateKeyFile: !GetAtt 'IoTStack.Outputs.PrivateKey'
+        PrivateSubnet1ID: !Ref 'PrivateSubnet1ID'
+        PrivateSubnet2ID: !Ref 'PrivateSubnet2ID'
+        QSDeploymentSuffix: !Ref 'QSDeploymentSuffix'
+        VPCCIDR: !Ref 'VPCCIDR'
+        VpcId: !Ref 'VPCID'
+        MosquittoBrokerDockerTag: !Ref MosquittoBrokerDockerTag
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/mosquitto.yaml'
+    Type: AWS::CloudFormation::Stack
+  S3DataBucketsStack:
+    Properties:
+      Parameters:
+        QSDeploymentSuffix: !Ref 'QSDeploymentSuffix'
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/s3-data-buckets.yaml'
+    Type: AWS::CloudFormation::Stack
+  S3RegionalLambdaBucketStack:
+    Properties:
+      Parameters:
+        QSDeploymentSuffix: !Ref 'QSDeploymentSuffix'
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/s3-regional-lambda-bucket.yaml'
+    Type: AWS::CloudFormation::Stack
+  StreamsStack:
+    Condition: UseKinesis
+    DependsOn:
+      - CopyLambdaDeploymentStack
+      - AthenaPartitionsStack
+      - ElasticsearchStack
+    Properties:
+      Parameters:
+        ConnectorType: !Ref ConnectorType
+        CreateS3LambdaTriggerLambdaARN: !GetAtt 'GenericActionsStack.Outputs.CreateS3LambdaTriggerLambdaARN'
+        CuratedDatasetsBucketARN: !GetAtt 'S3DataBucketsStack.Outputs.CuratedDataBucketARN'
+        ElasticsearchAccessRoleARN: !GetAtt 'IAMStack.Outputs.ElasticsearchAccessRoleARN'
+        ElasticsearchBucketRoleARN: !GetAtt 'IAMStack.Outputs.ElasticsearchBucketRoleARN'
+        ElasticsearchDomainARN: !GetAtt 'ElasticsearchStack.Outputs.DomainARN'
+        ElasticsearchEndpoint: !GetAtt 'ElasticsearchStack.Outputs.DomainEndpoint'
+        KinesisAnalyticsLambdaRoleARN: !GetAtt 'IAMStack.Outputs.KinesisAnalyticsLambdaRoleARN'
+        KinesisStreamsShardsCount: !Ref 'KinesisStreamsShardsCount'
+        ManagedFeedsBucketRoleARN: !GetAtt 'IAMStack.Outputs.ManagedFeedsBucketRoleARN'
+        QSDeploymentSuffix: !Ref 'QSDeploymentSuffix'
+        RegionalLambdaBucketName: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketName'
+        RegisterKibanaDashboardRoleARN: !GetAtt 'IAMStack.Outputs.RegisterKibanaDashboardRoleARN'
+        StreamsAccessRoleARN: !GetAtt 'IAMStack.Outputs.StreamsAccessRoleARN'
+        StreamsReferenceRoleARN: !GetAtt 'IAMStack.Outputs.StreamsReferenceRoleARN'
+        CuratedDataBucketName: !GetAtt 'S3DataBucketsStack.Outputs.CuratedDataBucketName'
+        UpdateKinesisReferenceDataLambdaRoleARN: !GetAtt 'IAMStack.Outputs.UpdateKinesisReferenceDataLambdaRoleARN'
+      TemplateURL: !Sub 'https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/foundation/streams.yaml'
+    Type: AWS::CloudFormation::Stack
+Outputs:
+  APIURL:
+    Value: !GetAtt 'APIInstanceStack.Outputs.APIEndpoint'
+    Description: API URL
+  BackfillQueueURL:
+    Value: !GetAtt 'CommunicationWorkerLambdaStack.Outputs.BackfillQueueURL'
+    Description: URL of backfill queue
+  ConnectorAgentInstanceProfileARN:
+    Value: !GetAtt 'IAMStack.Outputs.ConnectorAgentInstanceProfileARN'
+    Description: Instance profile ARN for Connector Agent
+  ConnectorAgentInstanceRoleARN:
+    Value: !GetAtt 'IAMStack.Outputs.ConnectorAgentInstanceRoleARN'
+  CopyLicencedBinaryLambdaRoleARN:
+    Value: !GetAtt 'IAMStack.Outputs.CopyLicencedBinaryLambdaRoleARN'
+    Description: Role for lambda which copies Connector Agent binaries
+  CuratedDataBucketName:
+    Value: !GetAtt 'S3DataBucketsStack.Outputs.CuratedDataBucketName'
+    Description: Bucket name for Curated Datasets
+  CreateTablesLambdaRoleARN:
+    Value: !GetAtt 'IAMStack.Outputs.CreateTablesLambdaRoleARN'
+  ECSCluster:
+    Value: !GetAtt 'ECSStack.Outputs.ECSClusterARN'
+  ECSTaskExecutionRoleARN:
+    Value: !GetAtt 'IAMStack.Outputs.ECSTaskExecutionRoleARN'
+  AutoBackfillerLambdaRoleARN:
+    Value: !GetAtt 'IAMStack.Outputs.AutoBackfillerLambdaRoleARN'
+  ElasticsearchDomainEndpoint:
+    Value: !GetAtt 'ElasticsearchStack.Outputs.DomainEndpoint'
+    Description: Elasticsearch domain endpoint
+  KinesisStreamName:
+    Value: !If
+      - UseKinesis
+      - !GetAtt 'StreamsStack.Outputs.KinesisStreamName'
+      - ''
+    Description: Kinesis feeds data stream name
+  IncomingQueueURL:
+    Value: !GetAtt 'CommunicationWorkerLambdaStack.Outputs.IncomingQueueURL'
+    Description: URL of incoming queue
+  InterpolationQueueURL:
+    Value: !GetAtt 'CommunicationWorkerLambdaStack.Outputs.InterpolationQueueURL'
+    Description: URL of interpolation queue
+  LogsToElasticsearchRoleARN:
+    Value: !GetAtt 'IAMStack.Outputs.LogsToElasticsearchRoleARN'
+    Description: Role ARN for writting logs to Elasticsearch
+  ManagementConsoleURL:
+    Value: !GetAtt 'ManagementConsoleStack.Outputs.ManagementConsoleEndpoint'
+    Description: Management Console URL
+  MosquittoBrokerHost:
+    Value: !If
+      - UseIoT
+      - !GetAtt 'MosquittoBrokerStack.Outputs.MosquittoBrokerEndpoint'
+      - ''
+    Description: Host name of mosquitto broker
+  OutgoingQueueURL:
+    Value: !GetAtt 'CommunicationWorkerLambdaStack.Outputs.OutgoingQueueURL'
+    Description: URL of outgoing queue
+  PostgresUri:
+    Value:
+      !Sub
+        - 'postgresql://${RDSUsername}:${RDSPassword}@${DatabaseStack.Outputs.RDSHostname}:${DatabaseStack.Outputs.RDSPort}/${RDSDatabaseName}'
+        - {
+          RDSDatabaseName: !FindInMap [Constants, RDS, RDSDatabaseName]
+        }
+    Description: URI to postgres database
+  RDSDatabaseName:
+    Value: !FindInMap [Constants, RDS, RDSDatabaseName]
+  RDSHostname:
+    Value: !GetAtt 'DatabaseStack.Outputs.RDSHostname'
+  PublishedDataBucketName:
+    Value: !GetAtt 'S3DataBucketsStack.Outputs.PublishedDataBucketName'
+    Description: Bucket name for Published Data
+  RegionalLambdaBucketARN:
+    Value: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketARN'
+    Description: ARN of bucket with lambda deployment package
+  RegionalLambdaBucketName:
+    Value: !GetAtt 'S3RegionalLambdaBucketStack.Outputs.RegionalLambdaBucketName'
+    Description: Name of bucket with lambda deployment package
+  SubmissionsBucketName:
+    Value: !GetAtt 'S3DataBucketsStack.Outputs.SubmissionsBucketName'
+    Description: Bucket name for submissions
+  SubscriptionQueueURL:
+    Value: !GetAtt 'CommunicationWorkerLambdaStack.Outputs.SubscriptionQueueURL'
+    Description: URL of subscriptionQueuek
+  SaveStatusLambdaRoleARN:
+    Value: !GetAtt 'IAMStack.Outputs.SaveStatusLambdaRoleARN'
+  VPCDestroyEniExecutionRoleARN:
+    Value: !GetAtt 'IAMStack.Outputs.VPCDestroyEniExecutionRoleARN'

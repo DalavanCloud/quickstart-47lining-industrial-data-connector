@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lambdas for performing generic periodic actions. **WARNING** This template
+  creates an Amazon Lambda. You will be billed for the AWS resources used if you create
+  a stack from this template.
+Parameters:
+  CopyLambdaDeploymentRoleARN:
+    Type: String
+  QSS3BucketName:
+    Type: String
+  QSS3KeyPrefix:
+    Type: String
+  RegionalLambdaBucketName:
+    Type: String
+Resources:
+  CopyLambdaDeployment:
+    Properties:
+      QSS3BucketName: !Ref 'QSS3BucketName'
+      QSS3KeyPrefix: !Ref 'QSS3KeyPrefix'
+      RegionalLambdaBucket: !Ref 'RegionalLambdaBucketName'
+      ServiceToken: !GetAtt 'CopyLambdaDeploymentFunction.Arn'
+    Type: Custom::CopyLambdaDeployment
+  CopyLambdaDeploymentFunction:
+    Properties:
+      Code:
+        ZipFile: !Join
+          - "\n"
+          - - 'import json'
+            - 'import cfnresponse'
+            - 'import boto3'
+            - 'import os'
+            - 'from botocore.exceptions import ClientError'
+            - ''
+            - 's3 = boto3.client(''s3'')'
+            - ''
+            - 'def list_files(bucket, prefix):'
+            - '    print("List: %s/%s" % (bucket, prefix))'
+            - '    bucket_obj = boto3.resource(''s3'').Bucket(bucket)'
+            - '    return [obj.key for obj in bucket_obj.objects.filter(Prefix=prefix)]'
+            - ''
+            - 'def copy(src_bucket, src_key, dest_bucket, dest_key):'
+            - '    copy_source = {''Bucket'': src_bucket, ''Key'': src_key}'
+            - '    print("Copying %s to %s" % (src_key, dest_key))'
+            - '    s3.copy_object(Bucket=dest_bucket, Key=dest_key, CopySource=copy_source)'
+            - ''
+            - 'def delete(dest_bucket, dest_key):'
+            - '    print("Deleting %s" % dest_key)'
+            - '    s3.delete_object(Bucket=dest_bucket, Key=dest_key)'
+            - ''
+            - 'def handler(event, context):'
+            - '    source_bucket = event[''ResourceProperties''][''QSS3BucketName'']'
+            - '    source_prefix = event[''ResourceProperties''][''QSS3KeyPrefix'']'
+            - '    target_bucket = event[''ResourceProperties''][''RegionalLambdaBucket'']'
+            - ''
+            - '    lambda_key = ''lambda_deployment_package.zip'''
+            - '    lambda_source_key = source_prefix + lambda_key'
+            - '    java_module_names = [''save_status.zip'']'
+            - ''
+            - '    try:'
+            - '        if event[''RequestType''] == ''Delete'':'
+            - '            kibana_keys = list_files(target_bucket, ''kibana/'')'
+            - ''
+            - '            delete(target_bucket, lambda_key)'
+            - '            for java_key in java_module_names:'
+            - '                delete(target_bucket, java_key)'
+            - '            for targe_key in kibana_keys:'
+            - '                delete(target_bucket, targe_key)'
+            - '                '
+            - '            return cfnresponse.send(event, context, cfnresponse.SUCCESS, {})'
+            - ''
+            - '        kibana_prefix = source_prefix + ''kibana/'''
+            - '        kibana_source_keys = list_files(source_bucket, kibana_prefix)'
+            - ''
+            - '        copy(source_bucket, lambda_source_key, target_bucket, lambda_key)'
+            - '        for module_name in java_module_names:'
+            - '            java_lambda_source_key = source_prefix + module_name'
+            - '            copy(source_bucket, java_lambda_source_key, target_bucket, module_name)'
+            - '        for source_key in kibana_source_keys:'
+            - '            target_key = ''kibana/{0}''.format(os.path.basename(source_key))'
+            - '            copy(source_bucket, source_key, target_bucket, target_key)'
+            - ''
+            - '        return cfnresponse.send(event, context, cfnresponse.SUCCESS, {})'
+            - ''
+            - '    except ClientError as e:'
+            - '        print(e)'
+            - '        return cfnresponse.send(event, context, cfnresponse.FAILED, {})'
+      Description: Copy deployment package to the regional bucket
+      Handler: index.handler
+      Role: !Ref 'CopyLambdaDeploymentRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+    Type: AWS::Lambda::Function

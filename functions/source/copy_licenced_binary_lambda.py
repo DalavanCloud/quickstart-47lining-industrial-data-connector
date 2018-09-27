@@ -1,55 +1,49 @@
+import logging
 import os
-from concurrent.futures import ThreadPoolExecutor
 
 import boto3
-import functools
+
 from source.utils import send_cfnresponse
 
-
-def copy_data(event, source_bucket, source_key, destination_key):
-    submissions_bucket = boto3.resource('s3').Bucket(event['ResourceProperties']['DestinationBucketName'])
-    copy_source = {
-        'Bucket': source_bucket,
-        'Key': source_key
-    }
-    return functools.partial(submissions_bucket.copy, copy_source, destination_key)
+log = logging.getLogger(__name__)
 
 
-def recursive_copy_data(event, source_bucket, source_prefix, destination_prefix):
-    data_bucket = boto3.resource('s3').Bucket(source_bucket)
-    source_path = source_prefix
-    for obj in data_bucket.objects.filter(Prefix=source_path):
-        source_key = obj.key
-        destination_key = os.path.join(destination_prefix, os.path.basename(obj.key))
-        yield copy_data(event, source_bucket, source_key, destination_key)
+def copy_files(src_bucket_name, src_prefix, dest_bucket_name, dest_prefix):
+    log.info("Copying from %s/%s to %s/%s" % (src_bucket_name, src_prefix, dest_bucket_name, dest_prefix))
+
+    s3 = boto3.resource('s3')
+    src_bucket = s3.Bucket(src_bucket_name)
+    dest_bucket = s3.Bucket(dest_bucket_name)
+
+    for obj in src_bucket.objects.filter(Prefix=src_prefix):
+        source = {'Bucket': src_bucket_name, 'Key': obj.key}
+        dest_bucket.copy(source, os.path.join(dest_prefix, os.path.basename(obj.key)))
 
 
-def generate_copy_jobs(event):
-    yield from recursive_copy_data(event,
-                                   source_bucket=event['ResourceProperties']['LicensedSoftwareS3BucketName'],
-                                   source_prefix=event['ResourceProperties']['LicensedSoftwareS3KeyPrefix'],
-                                   destination_prefix=event['ResourceProperties']['DestinationKeyPrefix'])
-    yield from recursive_copy_data(event,
-                                   source_bucket=event['ResourceProperties']['ConnectorAgentAssetsS3BucketName'],
-                                   source_prefix=event['ResourceProperties']['ConnectorAgentAssetsS3KeyPrefix'],
-                                   destination_prefix=event['ResourceProperties']['DestinationKeyPrefix'])
+def delete_binary_files(bucket_name, licensed_prefix, agent_prefix):
+    bucket = boto3.resource('s3').Bucket(bucket_name)
 
-
+    for prefix in [licensed_prefix, agent_prefix]:
+        for obj in bucket.objects.filter(Prefix=prefix):
+            obj.delete()
 
 
 @send_cfnresponse
 def handler(event, context):
+    target_bucket_name = event['ResourceProperties']['DestinationBucketName']
+    target_licensed_key_prefix = event['ResourceProperties']['DestinationKeyPrefix']
+    compiled_agent_key_prefix = event['ResourceProperties']['CompiledAgentKeyPrefix']
+
     if event['RequestType'] == 'Create':
-        with ThreadPoolExecutor(max_workers=7) as executor:
-            futures = [executor.submit(job) for job in generate_copy_jobs(event)]
-        for future in futures:
-            exception = future.exception()
-            if exception is not None:
-                print(exception)
-                raise exception
+        copy_files(event['ResourceProperties']['LicensedSoftwareS3BucketName'],
+                   event['ResourceProperties']['LicensedSoftwareS3KeyPrefix'],
+                   event['ResourceProperties']['DestinationBucketName'],
+                   event['ResourceProperties']['DestinationKeyPrefix'])
+
+        copy_files(event['ResourceProperties']['ConnectorAgentAssetsS3BucketName'],
+                   event['ResourceProperties']['ConnectorAgentAssetsS3KeyPrefix'],
+                   event['ResourceProperties']['DestinationBucketName'],
+                   event['ResourceProperties']['DestinationKeyPrefix'])
+
     elif event['RequestType'] == 'Delete':
-        regional_lambda_bucket = boto3.resource('s3').Bucket(event['ResourceProperties']['DestinationBucketName'])
-        for key in regional_lambda_bucket.objects.filter(Prefix=event['ResourceProperties']['DestinationKeyPrefix']):
-            key.delete()
-
-
+        delete_binary_files(target_bucket_name, target_licensed_key_prefix, compiled_agent_key_prefix)

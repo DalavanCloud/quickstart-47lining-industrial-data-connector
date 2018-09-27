@@ -1,0 +1,159 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: '**WARNING** This template creates Amazon IoT resources. You will be
+  billed for the AWS resources used if you create a stack from this template.'
+Parameters:
+  ConnectorType:
+    Type: String
+  MetricNamespaceName:
+    Type: String
+  DataBucketName:
+    Type: String
+  ElasticsearchEndpoint:
+    Type: String
+  GenerateCSRLambdaRoleARN:
+    Type: String
+  DeactivateCertificateLambdaRoleARN:
+    Type: String
+  CreateIoTRulesLambdaRoleARN:
+    Type: String
+  IoTRuleRoleArn:
+    Type: String
+  Server:
+    Type: String
+  QSDeploymentSuffix:
+    AllowedPattern: '[a-z0-9]+'
+    ConstraintDescription: Deployment suffix can include numbers, lowercase letters
+      and should have the maximum length of 7 characters.
+    Default: qs
+    MaxLength: 12
+    MinLength: 1
+    Type: String
+  RegionalLambdaBucketName:
+    Type: String
+  RegisterKibanaDashboardRoleARN:
+    Type: String
+  CreateIndividualLogs:
+    Type: String
+Resources:
+  GenerateCSRFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Generate CSR and private key
+      Handler: source.generate_csr_lambda.lambda_handler
+      Role: !Ref 'GenerateCSRLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 60
+  GenerateCSRLambdaCustom:
+    Properties:
+      ServiceToken: !GetAtt 'GenerateCSRFunction.Arn'
+    Type: Custom::GenerateCSRLambda
+  DeactivateCertificateFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Deactivate IoT Certificate when deleting the stack
+      Handler: source.deactivate_certificate.lambda_handler
+      Role: !Ref 'DeactivateCertificateLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 60
+  DeactivateCertificateLambdaCustom:
+    DependsOn:
+      - IoTCertificate
+    Properties:
+      ServiceToken: !GetAtt 'DeactivateCertificateFunction.Arn'
+      CertificateId: !Ref 'IoTCertificate'
+    Type: Custom::DeactivateCertificateLambda
+  CreateIoTRulesLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Create IoT Topic Rules
+      Handler: source.create_iot_rules.lambda_handler
+      Role: !Ref 'CreateIoTRulesLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 60
+      Environment:
+        Variables:
+          IoTRuleRoleArn: !Ref 'IoTRuleRoleArn'
+          DataBucketName: !Ref 'DataBucketName'
+          MetricNamespaceName: !Ref 'MetricNamespaceName'
+          PiServer: !Ref 'Server'
+          QSDeploymentSuffix: !Ref 'QSDeploymentSuffix'
+          ElasticsearchEndpoint: !Ref 'ElasticsearchEndpoint'
+          CreateIndividualLogs: !Ref 'CreateIndividualLogs'
+          CONNECTOR_TYPE: !Ref ConnectorType
+  CreateIoTRulesLambdaCustom:
+    Properties:
+      ServiceToken: !GetAtt 'CreateIoTRulesLambda.Arn'
+    Type: Custom::CreateIoTRulesLambda
+  IoTCertificate:
+    Type: AWS::IoT::Certificate
+    Properties:
+      CertificateSigningRequest: !GetAtt 'GenerateCSRLambdaCustom.Csr'
+      Status: ACTIVE
+  IoTPolicy:
+    DependsOn:
+      - IoTCertificate
+    Type: AWS::IoT::Policy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - iot:Connect
+            Effect: Allow
+            Resource: !Join
+              - ''
+              - - 'arn:aws:iot:'
+                - !Ref 'AWS::Region'
+                - ':'
+                - !Ref 'AWS::AccountId'
+                - :client/
+                - !Sub '${Server}-${QSDeploymentSuffix}'
+          - Action:
+              - iot:Publish
+            Effect: Allow
+            Resource: !Join
+              - ''
+              - - 'arn:aws:iot:'
+                - !Ref 'AWS::Region'
+                - ':'
+                - !Ref 'AWS::AccountId'
+                - :topic/*
+  PolicyPrincipalAttachment:
+    Type: AWS::IoT::PolicyPrincipalAttachment
+    Properties:
+      PolicyName: !Ref 'IoTPolicy'
+      Principal: !GetAtt 'IoTCertificate.Arn'
+  RegisterKibanaDashboardIoT:
+    Properties:
+      ServiceToken: !GetAtt 'RegisterKibanaDashboardLambdaIoT.Arn'
+      ElasticsearchEndpoint: !Ref 'ElasticsearchEndpoint'
+    Type: Custom::RegisterDashboard
+  RegisterKibanaDashboardLambdaIoT:
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Register dashboard in Kibana
+      Environment:
+        Variables:
+          ELASTICSEARCH_ENDPOINT: !Ref 'ElasticsearchEndpoint'
+          REGIONAL_LAMBDA_BUCKET_NAME: !Ref 'RegionalLambdaBucketName'
+      Handler: source.setup_elasticsearch_and_kibana.lambda_handler_iot
+      Role: !Ref 'RegisterKibanaDashboardRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+    Type: AWS::Lambda::Function
+Outputs:
+  PrivateKey:
+    Value: !GetAtt 'GenerateCSRLambdaCustom.PrivateKey'
+  IoTCertificateID:
+    Value: !Ref 'IoTCertificate'
