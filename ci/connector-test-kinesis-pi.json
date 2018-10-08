@@ -1,15 +1,15 @@
 [
   {
       "ParameterKey": "ConnectorAgentAssetsS3BucketName",
-      "ParameterValue": "osisoft-nvirginia-syncing-bucket"
+      "ParameterValue": "$[alfred_autobucket]"
   },
   {
       "ParameterKey": "ConnectorAgentAssetsS3KeyPrefix",
-      "ParameterValue": "grzegorz-predeploy/"
+      "ParameterValue": "connector-agent/"
   },
   {
       "ParameterKey": "QSDeploymentSuffix",
-      "ParameterValue": "qskin1"
+      "ParameterValue": "kinosi"
   },
   {
       "ParameterKey": "RemoteAccessCIDR",
@@ -97,11 +97,11 @@
   },
   {
       "ParameterKey": "LicensedSoftwareS3BucketName",
-      "ParameterValue": "osisoft-nvirginia-syncing-bucket"
+      "ParameterValue": "$[alfred_autobucket]"
   },
   {
       "ParameterKey": "LicensedSoftwareS3KeyPrefix",
-      "ParameterValue": "osisoft-grzegorz/qs-dev/"
+      "ParameterValue": "licensed-software/"
   },
   {
       "ParameterKey": "MaxIndexAge",

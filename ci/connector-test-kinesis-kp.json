@@ -1,55 +1,95 @@
 [
     {
-        "ParameterKey": "ApplicationUser",
-        "ParameterValue": "ConsoleAdmin"
+      "ParameterKey": "QSDeploymentSuffix",
+      "ParameterValue": "kinkp"
     },
     {
-        "ParameterKey": "RemoteAccessCIDR",
-        "ParameterValue": "1.1.1.1/1"
+      "ParameterKey": "RemoteAccessCIDR",
+      "ParameterValue": "1.1.1.1/32"
     },
     {
       "ParameterKey": "KeyName",
       "ParameterValue": "$[alfred_getkeypair]"
     },
     {
-        "ParameterKey": "AvailabilityZones",
-        "ParameterValue": "$[alfred_genaz_2]"
+      "ParameterKey": "VPCDefinition",
+      "ParameterValue": "QuickstartDefault"
     },
     {
-        "ParameterKey": "VPCDefinition",
-        "ParameterValue": "QuickstartDefault"
+      "ParameterKey": "AvailabilityZones",
+      "ParameterValue": "$[alfred_genaz_2]"
     },
     {
-        "ParameterKey": "LogGroupNamePrefix",
-        "ParameterValue": "ConnectorLogGroup"
+      "ParameterKey": "ApplicationUser",
+      "ParameterValue": "ConsoleAdmin"
     },
     {
-        "ParameterKey": "DataTransportService",
-        "ParameterValue": "Amazon Kinesis"
+      "ParameterKey": "ApplicationPassword",
+      "ParameterValue": "$[alfred_genpass_16]"
     },
     {
-        "ParameterKey": "ECSClusterSize",
-        "ParameterValue": "2"
+      "ParameterKey": "ElasticsearchNodeCount",
+      "ParameterValue": "1"
     },
     {
-        "ParameterKey": "ElasticsearchNodeCount",
-        "ParameterValue": "1"
+      "ParameterKey": "ElasticsearchNodeType",
+      "ParameterValue": "t2.small.elasticsearch"
     },
     {
-        "ParameterKey": "ElasticsearchNodeType",
-        "ParameterValue": "t2.small.elasticsearch"
+      "ParameterKey": "LogGroupNamePrefix",
+      "ParameterValue": "ConnectorLogGroup"
     },
     {
-        "ParameterKey": "ApplicationUser",
-        "ParameterValue": "ConsoleAdmin"
+      "ParameterKey": "MetricNamespaceNamePrefix",
+      "ParameterValue": "ConnectorMetricNamespace"
     },
     {
-        "ParameterKey": "ApplicationPassword",
-        "ParameterValue": "$[alfred_genpass_16]"
+      "ParameterKey": "MaxIndexAge",
+      "ParameterValue": "7"
+    },
+    {
+      "ParameterKey": "EnableS3LifecycleRules",
+      "ParameterValue": "yes"
+    },
+    {
+      "ParameterKey": "IATransitionPeriodInDays",
+      "ParameterValue": "90"
+    },
+    {
+      "ParameterKey": "GlacierTransitionPeriodInDays",
+      "ParameterValue": "365"
+    },
+    {
+      "ParameterKey": "KinesisStreamsShardsCount",
+      "ParameterValue": "1"
+    },
+    {
+      "ParameterKey": "DataTransportService",
+      "ParameterValue": "Amazon Kinesis"
+    },
+    {
+      "ParameterKey": "RDSInstanceType",
+      "ParameterValue": "db.t2.micro"
+    },
+    {
+      "ParameterKey": "RDSPassword",
+      "ParameterValue": "$[alfred_genpass_16]"
+    },
+    {
+      "ParameterKey": "RDSUsername",
+      "ParameterValue": "rdsuser"
+    },
+    {
+      "ParameterKey": "QSS3BucketName",
+      "ParameterValue": "$[alfred_autobucket]"
+    },
+    {
+      "ParameterKey": "QSS3KeyPrefix",
+      "ParameterValue": "itsc-quickstart/"
     },
     {
         "ParameterKey": "KepWareKeysS3BucketName",
-        "ParameterValue": "kepware-nv"
+        "ParameterValue": "$[alfred_autobucket]"
     },
     {
         "ParameterKey": "KepWarePrivateKeyS3KeyName",
@@ -60,8 +100,12 @@
         "ParameterValue": "certs/my_cert.der"
     },
     {
-        "ParameterKey": "KepWareEndpoint",
-        "ParameterValue": "opc.tcp://18.185.121.49:49322"
+        "ParameterKey": "KepWareIP",
+        "ParameterValue": "0.0.0.0"
+    },
+    {
+        "ParameterKey": "KepWarePort",
+        "ParameterValue": "49322"
     },
     {
         "ParameterKey": "KepWareUsername",
@@ -70,49 +114,5 @@
     {
         "ParameterKey": "KepWarePassword",
         "ParameterValue": "$[alfred_genpass_16]"
-    },
-    {
-        "ParameterKey": "QSDeploymentSuffix",
-        "ParameterValue": "qsiotkp"
-    },
-    {
-        "ParameterKey": "QSS3BucketName",
-        "ParameterValue": "$[alfred_autobucket]"
-    },
-    {
-        "ParameterKey": "QSS3KeyPrefix",
-        "ParameterValue": "itsc-quickstart/"
-    },
-    {
-        "ParameterKey": "RDSUsername",
-        "ParameterValue": "rdsuser"
-    },
-    {
-        "ParameterKey": "RDSInstanceType",
-        "ParameterValue": "db.t2.micro"
-    },
-    {
-        "ParameterKey": "RDSPassword",
-        "ParameterValue": "$[alfred_genpass_16]"
-    },
-    {
-        "ParameterKey": "UseCustomDockerRepository",
-        "ParameterValue": "false"
-    },
-    {
-        "ParameterKey": "EnableS3LifecycleRules",
-        "ParameterValue": "yes"
-    },
-    {
-        "ParameterKey": "IATransitionPeriodInDays",
-        "ParameterValue": "90"
-    },
-    {
-        "ParameterKey": "GlacierTransitionPeriodInDays",
-        "ParameterValue": "365"
-    },
-    {
-        "ParameterKey": "MaxIndexAge",
-        "ParameterValue": "7"
     }
 ]

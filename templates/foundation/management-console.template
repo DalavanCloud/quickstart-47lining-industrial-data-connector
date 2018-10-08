@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Cloudformation template to create ECS service and run Management Console app. **WARNING**
+  You will be billed for the AWS resources used if you create a stack from this template.
+Parameters:
+  APIEndpointURL:
+    Type: String
+  ECSCluster:
+    Description: ARN of the cluster that you want to run your Amazon ECS service on.
+    Type: String
+  ECSTaskExecutionRoleARN:
+    Description: ECS Task Execution Role
+    Type: String
+  ManagementConsoleRoleARN:
+    Type: String
+  PublicSubnet1ID:
+    Description: Elastic load balancer subnet 1
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnet2ID:
+    Description: Elastic load balancer subnet 2
+    Type: AWS::EC2::Subnet::Id
+  QSDeploymentSuffix:
+    AllowedPattern: '[a-z0-9]+'
+    ConstraintDescription: Deployment suffix can include numbers, lowercase letters
+      and should have the maximum length of 7 characters.
+    Default: qs
+    Description: You can deploy this Quick Start multiple times in the same region
+      if you provide a different suffix that is added to resource names to make them
+      unique per each deployment. Use this parameter to support deployment of production
+      and test environments in the same region in the same AWS account.
+    MaxLength: 12
+    MinLength: 1
+    Type: String
+  ServiceName:
+    Default: management-console
+    Description: Name of ECS service
+    Type: String
+  TaskCount:
+    Description: The number of simultaneous management console tasks that you want to run on the
+      cluster.
+    Type: Number
+    Default: 1
+  VpcId:
+    Description: Management Console server VPC
+    Type: AWS::EC2::VPC::Id
+  RegionalLambdaBucketName:
+    Type: String
+  GenerateAppSecretLambdaRoleARN:
+    Type: String
+  ConnectorType:
+    Type: String
+  ManagementConsoleDockerTag:
+    Type: String
+    Default: latest
+Resources:
+  GenerateAppSecretFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Generate CSR and private key
+      Handler: source.generate_app_secret_lambda.lambda_handler
+      Role: !Ref 'GenerateAppSecretLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 60
+  GenerateAppSecretLambdaCustom:
+    Properties:
+      ServiceToken: !GetAtt 'GenerateAppSecretFunction.Arn'
+    Type: Custom::GenerateAppSecretLambda
+  ELBSecurityGroup:
+    Properties:
+      GroupDescription: Enable Elastic Load Balancer access via port 80
+      SecurityGroupIngress:
+        - CidrIp: '0.0.0.0/0'
+          FromPort: '80'
+          IpProtocol: tcp
+          ToPort: '80'
+      VpcId: !Ref 'VpcId'
+    Type: AWS::EC2::SecurityGroup
+  LoadBalancer:
+    Properties:
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref 'ELBSecurityGroup'
+      Subnets:
+        - !Ref 'PublicSubnet1ID'
+        - !Ref 'PublicSubnet2ID'
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: LoadBalancer
+    Properties:
+      Port: 4000
+      Protocol: HTTP
+      TargetType: instance
+      HealthCheckPath: /
+      HealthCheckPort: 4000
+      HealthCheckProtocol: HTTP
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: 'true'
+      VpcId: !Ref 'VpcId'
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref 'TargetGroup'
+      LoadBalancerArn: !Ref 'LoadBalancer'
+      Port: 80
+      Protocol: HTTP
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${ServiceName}-${QSDeploymentSuffix}'
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - Listener
+    Properties:
+      Cluster: !Ref 'ECSCluster'
+      ServiceName: !Ref 'ServiceName'
+      DesiredCount: !Ref 'TaskCount'
+      LoadBalancers:
+        - ContainerPort: 4000
+          ContainerName: !Sub '${ServiceName}-container'
+          TargetGroupArn: !Ref 'TargetGroup'
+      LaunchType: EC2
+      TaskDefinition: !Ref 'TaskDefinition'
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Environment:
+            - Name: API_URL
+              Value: !Sub 'http://${APIEndpointURL}/'
+            - Name: REGION
+              Value: !Sub '${AWS::Region}'
+            - Name: ACCOUNT_ID
+              Value: !Sub '${AWS::AccountId}'
+            - Name: APP_SECRET
+              Value: !Sub '${GenerateAppSecretLambdaCustom.secret}'
+            - Name: CONNECTOR_TYPE
+              Value: !Ref 'ConnectorType'
+          Image:
+            Fn::ImportValue:
+              !Sub 'awsitsdc-ManagementConsoleImageURI-${QSDeploymentSuffix}'
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref 'LogGroup'
+              awslogs-region: !Sub '${AWS::Region}'
+              awslogs-stream-prefix: ecs
+          MemoryReservation: 512
+          Name: !Sub '${ServiceName}-container'
+          PortMappings:
+            - HostPort: 4000
+              Protocol: tcp
+              ContainerPort: 4000
+      ExecutionRoleArn: !Ref 'ECSTaskExecutionRoleARN'
+      NetworkMode: host
+      TaskRoleArn: !Ref 'ManagementConsoleRoleARN'
+Outputs:
+  ManagementConsoleEndpoint:
+    Value: !GetAtt 'LoadBalancer.DNSName'
+    Description: Management Console URL

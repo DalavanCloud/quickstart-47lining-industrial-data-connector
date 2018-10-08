@@ -1,0 +1,276 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Cloudformation template to create an Amazon Kinesis Streams,
+  Kinesis Firehose and Kinesis Analytics applications. **WARNING**
+  You will be billed for the AWS resources used if you create a stack from this template.
+Parameters:
+  ConnectorType:
+    Type: String
+  CreateS3LambdaTriggerLambdaARN:
+    Type: String
+  CuratedDatasetsBucketARN:
+    Type: String
+  ElasticsearchAccessRoleARN:
+    Type: String
+  ElasticsearchBucketRoleARN:
+    Type: String
+  ElasticsearchDomainARN:
+    Type: String
+  ElasticsearchEndpoint:
+    Type: String
+  KinesisAnalyticsLambdaRoleARN:
+    Type: String
+  KinesisStreamsShardsCount:
+    Default: 2
+    Description: The number of Kinesis Streams shards to provision for feed Data Kinesis
+      Stream. For guidance, see the Amazon Kinesis Streams documentation.
+    MinValue: 1
+    Type: Number
+  ManagedFeedsBucketRoleARN:
+    Type: String
+  QSDeploymentSuffix:
+    AllowedPattern: '[a-z0-9]+'
+    ConstraintDescription: Deployment suffix can include numbers, lowercase letters
+      and should have the maximum length of 7 characters.
+    Default: qs
+    Description: You can deploy this Quick Start multiple times in the same region
+      if you provide a different suffix that is added to resource names to make them
+      unique per each deployment. Use this parameter to support deployment of production
+      and test environments in the same region in the same AWS account.
+    MaxLength: 12
+    MinLength: 1
+    Type: String
+  RegionalLambdaBucketName:
+    Type: String
+  RegisterKibanaDashboardRoleARN:
+    Type: String
+  StreamsAccessRoleARN:
+    Type: String
+  StreamsReferenceRoleARN:
+    Type: String
+  CuratedDataBucketName:
+    Type: String
+  UpdateKinesisReferenceDataLambdaRoleARN:
+    Type: String
+Resources:
+  CreateUpdateReferenceDataNotification:
+    Properties:
+      Bucket: !Ref 'CuratedDataBucketName'
+      Prefix: as_table/table.json
+      LambdaARN: !GetAtt 'UpdateKinesisReferenceDataLambda.Arn'
+      Events:
+        - s3:ObjectCreated:*
+      ServiceToken: !Ref 'CreateS3LambdaTriggerLambdaARN'
+    Type: Custom::CreateUpdateReferenceDataNotification
+    DependsOn: CreateKinesisAnalytics
+  CreateKinesisAnalytics:
+    Properties:
+      ServiceToken: !GetAtt 'KinesisAnalyticsLambda.Arn'
+    Type: Custom::CreateKinesisAnalytics
+  KinesisAnalyticsLambda:
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Create Kinesis Analytics applications
+      Environment:
+        Variables:
+          DEPLOYMENT_SUFFIX: !Ref 'QSDeploymentSuffix'
+          INPUT_STREAM_ARN: !GetAtt 'InputStream.Arn'
+          OUTPUT_ES_STREAM_ARN: !Join
+            - ':'
+            - - arn:aws:firehose
+              - !Ref 'AWS::Region'
+              - !Ref 'AWS::AccountId'
+              - !Join
+                - ''
+                - - deliverystream/
+                  - !Ref 'ElasticsearchOutputStream'
+          OUTPUT_S3_NUMERIC_STREAM_ARN: !Join
+            - ':'
+            - - arn:aws:firehose
+              - !Ref 'AWS::Region'
+              - !Ref 'AWS::AccountId'
+              - !Join
+                - ''
+                - - deliverystream/
+                  - !Ref 'S3NumericOutputStream'
+          OUTPUT_S3_TEXT_STREAM_ARN: !Join
+            - ':'
+            - - arn:aws:firehose
+              - !Ref 'AWS::Region'
+              - !Ref 'AWS::AccountId'
+              - !Join
+                - ''
+                - - deliverystream/
+                  - !Ref 'S3TextOutputStream'
+          OUTPUT_UPDATES_PER_MANAGED_FEED_ARN: !Join
+            - ':'
+            - - arn:aws:firehose
+              - !Ref 'AWS::Region'
+              - !Ref 'AWS::AccountId'
+              - !Join
+                - ''
+                - - deliverystream/
+                  - !Ref 'UpdatesPerManagedFeedOutputStream'
+          OUTPUT_UPDATES_PER_SECOND_STREAM_ARN: !Join
+            - ':'
+            - - arn:aws:firehose
+              - !Ref 'AWS::Region'
+              - !Ref 'AWS::AccountId'
+              - !Join
+                - ''
+                - - deliverystream/
+                  - !Ref 'UpdatesPerSecondOutputStream'
+          ROLE_ARN: !Ref 'StreamsAccessRoleARN'
+          STRUCTURE_DATA_BUCKET: !Ref 'CuratedDataBucketName'
+          STRUCTURE_DATA_KEY: as_table/table.json
+          CONNECTOR_TYPE: !Ref ConnectorType
+      Handler: source.create_kinesis_app_lambda.lambda_handler
+      Role: !Ref 'KinesisAnalyticsLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+    Type: AWS::Lambda::Function
+  ElasticsearchOutputStream:
+    Properties:
+      ElasticsearchDestinationConfiguration:
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 50
+        DomainARN: !Ref 'ElasticsearchDomainARN'
+        IndexName: managed_feeds
+        IndexRotationPeriod: OneDay
+        RetryOptions:
+          DurationInSeconds: '60'
+        RoleARN: !Ref 'ElasticsearchAccessRoleARN'
+        S3BackupMode: AllDocuments
+        S3Configuration:
+          BucketARN: !Ref 'CuratedDatasetsBucketARN'
+          BufferingHints:
+            IntervalInSeconds: '60'
+            SizeInMBs: '50'
+          CompressionFormat: UNCOMPRESSED
+          Prefix: elasticsearch-managed-feeds/data/
+          RoleARN: !Ref 'ElasticsearchBucketRoleARN'
+        TypeName: ManagedFeedStream
+    Type: AWS::KinesisFirehose::DeliveryStream
+  InputStream:
+    Properties:
+      RetentionPeriodHours: 24
+      ShardCount: !Ref 'KinesisStreamsShardsCount'
+    Type: AWS::Kinesis::Stream
+  S3NumericOutputStream:
+    Properties:
+      S3DestinationConfiguration:
+        BucketARN: !Ref 'CuratedDatasetsBucketARN'
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 60
+        CompressionFormat: UNCOMPRESSED
+        Prefix: data/numeric/
+        RoleARN: !Ref 'ManagedFeedsBucketRoleARN'
+    Type: AWS::KinesisFirehose::DeliveryStream
+  S3TextOutputStream:
+    Properties:
+      S3DestinationConfiguration:
+        BucketARN: !Ref 'CuratedDatasetsBucketARN'
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 60
+        CompressionFormat: UNCOMPRESSED
+        Prefix: data/text/
+        RoleARN: !Ref 'ManagedFeedsBucketRoleARN'
+    Type: AWS::KinesisFirehose::DeliveryStream
+  UpdatesPerManagedFeedOutputStream:
+    Properties:
+      ElasticsearchDestinationConfiguration:
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 50
+        DomainARN: !Ref 'ElasticsearchDomainARN'
+        IndexName: updates_per_managed_feed
+        IndexRotationPeriod: NoRotation
+        RetryOptions:
+          DurationInSeconds: '60'
+        RoleARN: !Ref 'ElasticsearchAccessRoleARN'
+        S3BackupMode: AllDocuments
+        S3Configuration:
+          BucketARN: !Ref 'CuratedDatasetsBucketARN'
+          BufferingHints:
+            IntervalInSeconds: '60'
+            SizeInMBs: '50'
+          CompressionFormat: UNCOMPRESSED
+          Prefix: elasticsearch-managed-feeds/updates_per_managed_feed/
+          RoleARN: !Ref 'ElasticsearchBucketRoleARN'
+        TypeName: UpdatesPerManagedFeed
+    Type: AWS::KinesisFirehose::DeliveryStream
+  UpdatesPerSecondOutputStream:
+    Properties:
+      ElasticsearchDestinationConfiguration:
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 50
+        DomainARN: !Ref 'ElasticsearchDomainARN'
+        IndexName: updates_per_second
+        IndexRotationPeriod: NoRotation
+        RetryOptions:
+          DurationInSeconds: '60'
+        RoleARN: !Ref 'ElasticsearchAccessRoleARN'
+        S3BackupMode: AllDocuments
+        S3Configuration:
+          BucketARN: !Ref 'CuratedDatasetsBucketARN'
+          BufferingHints:
+            IntervalInSeconds: '60'
+            SizeInMBs: '50'
+          CompressionFormat: UNCOMPRESSED
+          Prefix: elasticsearch-managed-feeds/updates_per_second/
+          RoleARN: !Ref 'ElasticsearchBucketRoleARN'
+        TypeName: UpdatesPerSecond
+    Type: AWS::KinesisFirehose::DeliveryStream
+  UpdateKinesisReferenceDataLambdaInvokePermission:
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt 'UpdateKinesisReferenceDataLambda.Arn'
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub 'arn:aws:s3:::${CuratedDataBucketName}'
+    Type: AWS::Lambda::Permission
+  UpdateKinesisReferenceDataLambda:
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Update Kinesis Analytics application reference data source
+      Environment:
+        Variables:
+          DEPLOYMENT_SUFFIX: !Ref 'QSDeploymentSuffix'
+          ROLE_ARN: !Ref 'StreamsReferenceRoleARN'
+          STRUCTURE_DATA_BUCKET: !Ref 'CuratedDataBucketName'
+          STRUCTURE_DATA_KEY: as_table/table.json
+      Handler: source.update_kinesis_reference_data.lambda_handler
+      Role: !Ref 'UpdateKinesisReferenceDataLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+    Type: AWS::Lambda::Function
+  RegisterKibanaDashboard:
+    Properties:
+      ServiceToken: !GetAtt 'RegisterKibanaDashboardLambda.Arn'
+      ElasticsearchEndpoint: !Ref 'ElasticsearchEndpoint'
+    Type: Custom::RegisterDashboard
+  RegisterKibanaDashboardLambda:
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Register dashboard in Kibana
+      Environment:
+        Variables:
+          ELASTICSEARCH_ENDPOINT: !Ref 'ElasticsearchEndpoint'
+          REGIONAL_LAMBDA_BUCKET_NAME: !Ref 'RegionalLambdaBucketName'
+      Handler: source.setup_elasticsearch_and_kibana.lambda_handler_kinesis
+      Role: !Ref 'RegisterKibanaDashboardRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+    Type: AWS::Lambda::Function
+Outputs:
+  KinesisStreamName:
+    Value: !Ref 'InputStream'
+    Description: Kinesis feeds data stream name

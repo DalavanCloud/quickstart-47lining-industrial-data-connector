@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Cloudformation template to create EC2 instance and run Mosquitto
+  Broker which serves as message broker between connector and AWS IoT. **WARNING**
+  You will be billed for the AWS resources used if you create a stack from this template.
+Parameters:
+  ECSCluster:
+    Description: ARN of the cluster that you want to run your Amazon ECS service on.
+    Type: String
+  ECSTaskExecutionRoleARN:
+    Description: ECS Task Execution Role
+    Type: String
+  IoTCertificateID:
+    Type: String
+  MosquittoBrokerRoleARN:
+    Type: String
+  Server:
+    Type: String
+  PrivateKeyFile:
+    Description: Content of Private Key file associated with CSR. Required only if
+      Data Transport Service is set to "IoT"
+    Type: String
+  PrivateSubnet1ID:
+    Description: Worker server subnet 1
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2ID:
+    Description: Worker server subnet 2
+    Type: AWS::EC2::Subnet::Id
+  QSDeploymentSuffix:
+    AllowedPattern: '[a-z0-9]+'
+    ConstraintDescription: Deployment suffix can include numbers, lowercase letters
+      and should have the maximum length of 7 characters.
+    Default: qs
+    Description: You can deploy this Quick Start multiple times in the same region
+      if you provide a different suffix that is added to resource names to make them
+      unique per each deployment. Use this parameter to support deployment of production
+      and test environments in the same region in the same AWS account.
+    MaxLength: 12
+    MinLength: 1
+    Type: String
+  ServiceName:
+    Default: Mosquitto-broker
+    Description: Name of ECS service
+    Type: String
+  TaskCount:
+    Description: The number of simultaneous mosquitto tasks that you want to run on
+      the cluster.
+    Type: Number
+    Default: 1
+  VPCCIDR:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+    Description: CIDR block for the VPC.
+    Type: String
+  VpcId:
+    Description: Communication Worker VPC
+    Type: AWS::EC2::VPC::Id
+  MosquittoBrokerDockerTag:
+    Type: String
+    Default: latest
+Resources:
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${ServiceName}-${QSDeploymentSuffix}'
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - Listener
+    Properties:
+      Cluster: !Ref 'ECSCluster'
+      ServiceName: !Ref 'ServiceName'
+      DesiredCount: !Ref 'TaskCount'
+      LoadBalancers:
+        - ContainerPort: 8883
+          ContainerName: !Sub '${ServiceName}-container'
+          TargetGroupArn: !Ref 'TargetGroup'
+      LaunchType: EC2
+      TaskDefinition: !Ref 'TaskDefinition'
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Environment:
+            - Name: AWS_DEFAULT_REGION
+              Value: !Sub '${AWS::Region}'
+            - Name: PRIVATE_KEY_FILE
+              Value: !Ref 'PrivateKeyFile'
+            - Name: PISERVER
+              Value: !Ref 'Server'
+            - Name: DEPLOYMENT_SUFFIX
+              Value: !Ref 'QSDeploymentSuffix'
+            - Name: IOT_CERTIFICATE_ID
+              Value: !Ref 'IoTCertificateID'
+          Image:
+            Fn::ImportValue:
+              !Sub 'awsitsdc-MQTTBrokerImageURI-${QSDeploymentSuffix}'
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref 'LogGroup'
+              awslogs-region: !Sub '${AWS::Region}'
+              awslogs-stream-prefix: ecs
+          MemoryReservation: 512
+          Name: !Sub '${ServiceName}-container'
+          PortMappings:
+            - HostPort: 8883
+              Protocol: tcp
+              ContainerPort: 8883
+      ExecutionRoleArn: !Ref 'ECSTaskExecutionRoleARN'
+      NetworkMode: host
+      TaskRoleArn: !Ref 'MosquittoBrokerRoleARN'
+  SecurityGroup:
+    Properties:
+      GroupDescription: Enable access via Mosquitto port
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref 'ELBSecurityGroup'
+          FromPort: 8883
+          IpProtocol: tcp
+          ToPort: 8883
+      VpcId: !Ref 'VpcId'
+    Type: AWS::EC2::SecurityGroup
+  LoadBalancer:
+    Properties:
+      Scheme: internal
+      Subnets:
+        - !Ref 'PrivateSubnet1ID'
+        - !Ref 'PrivateSubnet2ID'
+      Type: network
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: LoadBalancer
+    Properties:
+      Port: 8883
+      Protocol: TCP
+      TargetType: instance
+      HealthCheckPort: 8883
+      HealthCheckProtocol: TCP
+      VpcId: !Ref 'VpcId'
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref 'TargetGroup'
+      LoadBalancerArn: !Ref 'LoadBalancer'
+      Port: 8883
+      Protocol: TCP
+  ELBSecurityGroup:
+    Properties:
+      GroupDescription: Enable Elastic Load Balancer access via Mosquitto port
+      SecurityGroupIngress:
+        - CidrIp: !Ref 'VPCCIDR'
+          FromPort: 8883
+          IpProtocol: tcp
+          ToPort: 8883
+      VpcId: !Ref 'VpcId'
+    Type: AWS::EC2::SecurityGroup
+Outputs:
+  MosquittoBrokerEndpoint:
+    Value: !GetAtt 'LoadBalancer.DNSName'
+    Description: Mosquitto Broker URL

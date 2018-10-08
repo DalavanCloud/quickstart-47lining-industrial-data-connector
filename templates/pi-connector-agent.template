@@ -1,0 +1,697 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Cloudformation template to create a single 47lining PI2AWS Connector installation. **WARNING**
+  You will be billed for the AWS resources used if you create a stack from this template.
+  Also, you are solely responsible for complying with the license terms for the software
+  downloaded and installed by this template. By creating a stack from this template,
+  you are agreeing to such terms.
+Conditions:
+  UsePublicSubnet: !Equals
+    - !Ref 'PISubnetType'
+    - Public
+  UseWIS: !Equals
+    - !Ref 'AuthType'
+    - WIS
+  UseIoT: !Equals
+    - !Ref 'DataTransportService'
+    - AWS IoT
+  UseKinesis: !Equals
+    - !Ref 'DataTransportService'
+    - Amazon Kinesis
+Parameters:
+  AFDomainName:
+    Type: String
+  AFPassword:
+    NoEcho: 'true'
+    Type: String
+  AFPort:
+    Default: 5457
+    Type: Number
+  AFServerIP:
+    AllowedPattern: ^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))?$
+    Type: String
+  AFUser:
+    Type: String
+  AuthType:
+    AllowedValues:
+      - WIS
+      - Explicit user and password
+    Default: WIS
+    Type: String
+  BackfillQueueURL:
+    Description: URL of incoming backfill/interpolation queue
+    Type: String
+  CompiledAgentKeyPrefix:
+    Type: String
+  ConnectorAgentInstanceProfileARN:
+    Type: String
+  DataTransportService:
+    AllowedValues:
+      - AWS IoT
+      - Amazon Kinesis
+    Default: Amazon Kinesis
+    Type: String
+  DomainControllerServerIP:
+    AllowedPattern: ^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))?$
+    Type: String
+  ElasticsearchDomainEndpoint:
+    Type: String
+  IncomingQueueUrl:
+    Type: String
+  InstanceType:
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t2.large
+      - m4.large
+      - m4.xlarge
+      - m4.2xlarge
+      - m4.4xlarge
+      - m4.10xlarge
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.12xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+    Default: t2.micro
+    Description: Amazon EC2 instance type
+    Type: String
+  InterpolationQueueURL:
+    Type: String
+  KeyName:
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+    Description: Name of an existing EC2 KeyPair
+    Type: AWS::EC2::KeyPair::KeyName
+  KinesisStreamName:
+    Type: String
+  LicensedSoftwareS3KeyPrefix:
+    Type: String
+  LogGroupName:
+    Type: String
+  LogsToElasticsearchRoleARN:
+    Type: String
+  MetricNamespaceName:
+    Type: String
+  MQTTBrokerHost:
+    Type: String
+    Default: ''
+  MQTTBrokerPort:
+    Type: Number
+    Default: 8883
+  MQTTTopicPrefix:
+    Type: String
+  OutgoingQueueUrl:
+    Type: String
+  PIPassword:
+    Description: Password for the PI Data Archive user. Required only if Authentication
+      Method is set to "Explicit user and password".
+    NoEcho: 'true'
+    Type: String
+  PIPort:
+    Default: 5450
+    Description: Port on which PI Data Archive runs.
+    Type: Number
+  PIServerIP:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$
+    Description: Host (IP) of the PI Data Archive Server.
+    Type: String
+  PISubnetType:
+    AllowedValues:
+      - Public
+      - Private
+    Default: Public
+    Description: PI Connector Agent subnet type. It can be public or private. **WARNING**
+      Using private subnet for Connector Agent and VPN will not work together.
+    Type: String
+  PIUser:
+    Type: String
+  PrivateSubnet1ID:
+    Description: Connector private subnet 1
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2ID:
+    Description: Connector private subnet 2
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnet1ID:
+    Description: Connector public subnet 1
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnet2ID:
+    Description: Connector public subnet 2
+    Type: AWS::EC2::Subnet::Id
+  QSDeploymentSuffix:
+    AllowedPattern: '[a-z0-9]+'
+    ConstraintDescription: Deployment suffix can include numbers, lowercase letters
+      and should have the maximum length of 7 characters.
+    Default: qs
+    MaxLength: 12
+    MinLength: 1
+    Type: String
+  RegionalLambdaBucketARN:
+    Description: RegionalLambdaBucket bucket ARN
+    Type: String
+  RegionalLambdaBucketName:
+    Description: Regional S3 bucket where tha lambda code will be stored
+    Type: String
+  RemoteAccessCIDR:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/x
+    Type: String
+  SubscriptionQueueURL:
+    Description: URL of incoming subscription queue
+    Type: String
+  VpcId:
+    Description: VPC id
+    Type: AWS::EC2::VPC::Id
+  VPCCIDR:
+    Description: CIDR block for your existing VPC.
+    Type: String
+  WISFQDN:
+    Default: ''
+    Description: Fully qualified domain name (FQDN) of the forest domain for OSIsoft
+      system e.g. "osisoft-example.com". Required only if Authentication Method is
+      set to "WIS".
+    Type: String
+  WISPassword:
+    Default: ''
+    Description: The password (in Active Directory in your Windows network) for the
+      user who has privileges to access PI Data Archive and AF Server. Required only
+      if Authentication Method is set to "WIS".
+    NoEcho: 'true'
+    Type: String
+  WISUser:
+    Default: ''
+    Description: The user name (in Active Directory in your Windows network) for the
+      user who has privileges to access PI Data Archive and AF Server. Required only
+      if Authentication Method is set to "WIS".
+    Type: String
+  StateTopicARN:
+    Description: ARN for Connector state topic
+    Type: String
+  AgentNumberOfThreads:
+    Description: Number of threads in Connector Agent used to push data into Kinesis. This parameter is not uses if AWS
+      IoT is used as the data transport service.
+    Type: Number
+    Default: 128
+  MaxConcurrentBackfillJobs:
+    Description: Number of concurrent backfills that may be running on the ConnectorAgent.
+    Type: Number
+    Default: 50
+  MaxConcurrentInterpolationJobs:
+    Description: Number of concurrent interpolations that may be running on the ConnectorAgent.
+    Type: Number
+    Default: 50
+Mappings:
+  AWSAMIRegionMap:
+    AMI:
+      WS2016: Windows_Server-2016-English-Full-Base-2017.11.29
+    us-east-1:
+      WS2016: ami-08910872
+    us-east-2:
+      WS2016: ami-21587144
+    us-west-2:
+      WS2016: ami-f6d8008e
+    eu-central-1:
+      WS2016: ami-da9b14b5
+    eu-west-1:
+      WS2016: ami-088f9db67b4afec52
+    eu-west-2:
+      WS2016: ami-78657b1c
+    ap-southeast-1:
+      WS2016: ami-870855e4
+    ap-southeast-2:
+      WS2016: ami-de5eabbc
+    ap-northeast-1:
+      WS2016: ami-ec279c8a
+    ap-northeast-2:
+      WS2016: ami-e8ef4986
+Resources:
+  ConnectorLogGroup:
+    Properties:
+      LogGroupName: !Ref 'LogGroupName'
+    Type: AWS::Logs::LogGroup
+  ConnectorStream:
+    Properties:
+      LogGroupName: !Ref 'ConnectorLogGroup'
+    Type: AWS::Logs::LogStream
+  BufferingQueueStateMetricFilter:
+    Properties:
+      FilterPattern: '{ $.entityName = "BufferingQueueStateMetric"}'
+      LogGroupName: !Ref 'ConnectorLogGroup'
+      MetricTransformations:
+        - MetricName: !Join
+            - '-'
+            - - !Ref 'ConnectorStream'
+              - BufferingQueueState
+          MetricNamespace: !Ref 'MetricNamespaceName'
+          MetricValue: $.value
+    Type: AWS::Logs::MetricFilter
+  KinesisBatchFailedMetricFilter:
+    Properties:
+      FilterPattern: '{ $.entityName = "KinesisMessagesFailedMetric"}'
+      LogGroupName: !Ref 'ConnectorLogGroup'
+      MetricTransformations:
+        - MetricName: !Join
+            - '-'
+            - - !Ref 'ConnectorStream'
+              - KinesisMessagesFailed
+          MetricNamespace: !Ref 'MetricNamespaceName'
+          MetricValue: $.value
+    Type: AWS::Logs::MetricFilter
+  KinesisPushedRecordsMetricFilter:
+    Properties:
+      FilterPattern: '{ $.entityName = "KinesisRecordPushedMetric"}'
+      LogGroupName: !Ref 'ConnectorLogGroup'
+      MetricTransformations:
+        - MetricName: !Join
+            - '-'
+            - - !Ref 'ConnectorStream'
+              - KinesisRecordPushed
+          MetricNamespace: !Ref 'MetricNamespaceName'
+          MetricValue: $.value
+    Type: AWS::Logs::MetricFilter
+  LogsToElasticsearchLambda:
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Send metrics from CloudWatch to Elastisearch
+      Environment:
+        Variables:
+          ES_DOMAIN_ENDPOINT: !Ref 'ElasticsearchDomainEndpoint'
+      Handler: source/logs_to_es_lambda.handler
+      Role: !Ref 'LogsToElasticsearchRoleARN'
+      Runtime: nodejs8.10
+      Timeout: 30
+    Type: AWS::Lambda::Function
+  LogsToElasticsearchLambdaPermission:
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt 'LogsToElasticsearchLambda.Arn'
+      Principal: logs.amazonaws.com
+    Type: AWS::Lambda::Permission
+  LogsToElastisearchSubcriptionFilter:
+    DependsOn: LogsToElasticsearchLambdaPermission
+    Properties:
+      DestinationArn: !GetAtt 'LogsToElasticsearchLambda.Arn'
+      FilterPattern: ''
+      LogGroupName: !Ref ConnectorLogGroup
+    Type: AWS::Logs::SubscriptionFilter
+  ELBSecurityGroup:
+    Properties:
+      GroupDescription: Enable Elastic Load Balancer access via port 80
+      SecurityGroupIngress:
+        - CidrIp: !Ref 'VPCCIDR'
+          FromPort: '80'
+          IpProtocol: tcp
+          ToPort: '80'
+      VpcId: !Ref 'VpcId'
+    Type: AWS::EC2::SecurityGroup
+  ElasticLoadBalancer:
+    Properties:
+      ConnectionSettings:
+        IdleTimeout: '300'
+      Listeners:
+        - InstancePort: '80'
+          LoadBalancerPort: '80'
+          Protocol: "HTTP"
+      SecurityGroups:
+        - !Ref 'ELBSecurityGroup'
+      Subnets: !If
+        - UsePublicSubnet
+        - - Ref: 'PublicSubnet1ID'
+          - Ref: 'PublicSubnet2ID'
+        - - Ref: 'PrivateSubnet1ID'
+          - Ref: 'PrivateSubnet2ID'
+      HealthCheck:
+        HealthyThreshold: '5'
+        Interval: '30'
+        Target: 'HTTP:80/healthcheck'
+        Timeout: '5'
+        UnhealthyThreshold: '2'
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+  PI2AWSConnectorAutoScalingGroup:
+    CreationPolicy:
+      ResourceSignal:
+        Count: '1'
+        Timeout: PT30M
+    Properties:
+      Cooldown: '300'
+      DesiredCapacity: '1'
+      LaunchConfigurationName: !Ref 'PI2AWSConnectorLaunchConfiguration'
+      LoadBalancerNames:
+        - !Ref 'ElasticLoadBalancer'
+      MaxSize: '1'
+      MinSize: '1'
+      HealthCheckGracePeriod: '600'
+      HealthCheckType: 'ELB'
+      Tags:
+        - Key: Name
+          PropagateAtLaunch: 'true'
+          Value: !Sub 'PI2AWSConnector-${QSDeploymentSuffix}'
+      VPCZoneIdentifier: !If
+        - UsePublicSubnet
+        - - Ref: 'PublicSubnet1ID'
+          - Ref: 'PublicSubnet2ID'
+        - - Ref: 'PrivateSubnet1ID'
+          - Ref: 'PrivateSubnet2ID'
+    Type: AWS::AutoScaling::AutoScalingGroup
+  PI2AWSConnectorLaunchConfiguration:
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          commands:
+            1-configure-cloudwatch:
+              command: xcopy "c:\AWS.EC2.Windows.CloudWatch.json" "c:\Program Files\Amazon\SSM\Plugins\awsCloudWatch\"
+              waitAfterCompletion: '0'
+            2a-install-7zip:
+              command: msiexec.exe /i C:\7zip.msi /Q /LOG "C:\install-log-7zip.log"
+              waitAfterCompletion: '0'
+            2b-unpack-connector:
+              command: '"C:\Program Files\7-Zip\7z.exe" x -y c:\AF-Install-Kit\connector-agent.zip -oC:\connector-source'
+              waitAfterCompletion: '0'
+            2c-install-cwagent:
+              command: 'powershell -file C:\connector-source\assets\install-cwagent.ps1'
+              waitAfterCompletion: '0'
+            3-build-connector:
+              command: !Sub 'powershell -file
+              "C:\connector-source\assets\build-osisoft-connector.ps1"
+              "-ConnectorSourcePath" "C:\connector-source" "-InstallDir" "C:\connector"
+              "-RegionalLambdaBucketName" "${RegionalLambdaBucketName}" "-RegionalLambdaBucketPath" "${CompiledAgentKeyPrefix}"
+              "-PIServerIP" "${PIServerIP}" "-PIPort" "${PIPort}" "-AFServerIP" "${AFServerIP}" "-AFPort" "${AFPort}"
+              "-AuthType" "${AuthType}"
+              "-DomainControllerServerIP" "${DomainControllerServerIP}" "-WISFQDN" "${WISFQDN}" "-WISUser" "${WISUser}" "-WISPassword" "${WISPassword}"
+              '
+              waitAfterCompletion: '0'
+            4-run-connector:
+              command: !If
+                - UseWIS
+                - "\n"
+                - 'powershell -file "C:\connector-source\assets\run-osisoft-connector.ps1" "-InstallDir" "C:\connector"'
+              waitAfterCompletion: '0'
+          files:
+            c:\7zip.msi:
+              source: http://www.7-zip.org/a/7z1801-x64.msi
+            c:\AF-Install-Kit\af-silent.ini:
+              content: !Join
+                - "\n"
+                - - '[SETUPKIT]'
+                  - NAME = SetupAFClient2_x
+                  - 'DISPLAYNAME = PI AF Client '
+                  - SHOWSKIPPEDMODULES = FALSE
+                  - FEATUREUPGRADE = FALSE
+                  - SUPPRESSCOMPLETIONMESSAGE = TRUE
+                  - SUPPRESSPROGRESSMESSAGE = TRUE
+                  - SUPPRESSHEADERMESSAGE = TRUE
+                  - SUPPRESSDIALOGS = TRUE
+                  - '[NUMSETUPMODULES]'
+                  - NUM = 12
+                  - '[SETUPMODULES]'
+                  - 1 = dotnet462Setup
+                  - 2 = PreInstallTasks
+                  - 3 = MSVC9SP1x86Redistrib
+                  - 4 = MSVC9SP1x64Redistrib
+                  - 5 = MSRuntimesVS2017_x86
+                  - 6 = MSRuntimesVS2017_x64
+                  - 7 = PINS
+                  - 8 = PIBufss.msi
+                  - 9 = PIBufss_x64.msi
+                  - 10 = AFClient_x86.msi
+                  - 11 = AFClient_x64.msi
+                  - 12 = VSTOWrapper
+                  - '[COMMANDLINE]'
+                  - 1 = /q
+                  - '2 = '
+                  - 3 = /q /norestart
+                  - 4 = /q /norestart
+                  - 5 = /q /norestart
+                  - 6 = /q /norestart
+                  - 7 = ALLUSERS=1 REBOOT=Suppress /qn
+                  - 8 = ALLUSERS=1 REBOOT=Suppress /qn
+                  - 9 = ALLUSERS=1 REBOOT=Suppress /qn
+                  - !Sub '10 = /qn REBOOT=Suppress ALLUSERS=1 ADDLOCAL=FD_AFSDK,FD_AFExplorer
+                    AF_SERVER=AFHostName PI_SERVER=PIHostName PI_USER=${AFUser} PI_PORT=${PIPort}'
+                  - !Sub '11 = /qn REBOOT=Suppress ALLUSERS=1 ADDLOCAL=FD_AFSDK,FD_AFExplorer
+                    AF_SERVER=AFHostName PI_SERVER=PIHostName PI_USER=${AFUser} PI_PORT=${PIPort}'
+                  - '[UPGRADECOMMANDLINE]'
+                  - '[DISPLAYNAME]'
+                  - 3 = Microsoft Visual C++ 2008 Redistributable x86
+                  - 4 = Microsoft Visual C++ 2008 Redistributable x64
+                  - '[VERSION]'
+                  - '[CHECKFORINSTALLEDONLY]'
+                  - '[UNSUPPORTED_OPERATING_SYSTEMS]'
+                  - '0 = Win95, Win98, WinME, WinNT, Win2K,  WinXP, WinNET, VistaNoSp,
+                    VistaSp1, Win2008NoSp, Win2008Sp1, Win2008SP2_X64_CORE, Win7NoSp,
+                    Win2008R2NoSp, Win2008R2SP1_X64_CORE '
+                  - 3 = X64
+                  - 4 = X86
+                  - 6 = X86
+                  - 8 = X64
+                  - 9 = X86
+                  - 10 = X64
+                  - 11 = X86
+                  - '[RUNTIME_PARAMETERS]'
+                  - '[PIBUFSS]'
+            c:\AWS.EC2.Windows.CloudWatch.json:
+              content: !Join
+                - "\r\n"
+                - - '{"IsEnabled": true,'
+                  - '"EngineConfiguration": {'
+                  - '"PollInterval": "00:00:15",'
+                  - '"Components": ['
+                  - '{'
+                  - '"Id": "ConnectorLogs",'
+                  - '"FullName": "AWS.EC2.Windows.CloudWatch.CustomLog.CustomLogInputComponent,AWS.EC2.Windows.CloudWatch",'
+                  - '"Parameters": {'
+                  - '"LogDirectoryPath": "C:\\connector\\Logs\\",'
+                  - '"TimestampFormat": "yyyy-MM-dd HH:mm:ss",'
+                  - '"Encoding": "UTF-8",'
+                  - '"Filter": "",'
+                  - '"CultureName": "en-US",'
+                  - '"TimeZoneKind": "UTC"'
+                  - '}'
+                  - '},'
+                  - '{'
+                  - '"Id": "CloudWatchLogs",'
+                  - '"FullName": "AWS.EC2.Windows.CloudWatch.CloudWatchLogsOutput,AWS.EC2.Windows.CloudWatch",'
+                  - '"Parameters": {'
+                  - '"AccessKey": "",'
+                  - '"SecretKey": "",'
+                  - !Sub '"Region": "${AWS::Region}",'
+                  - !Sub '"LogGroup": "${LogGroupName}",'
+                  - '"LogStream": "{instance_id}"'
+                  - '}'
+                  - '}],'
+                  - '"Flows": {'
+                  - '"Flows": ['
+                  - '"ConnectorLogs,CloudWatchLogs"'
+                  - ']'
+                  - '}}}'
+            c:\connector\PI2AWSConnector.exe.config:
+              content: !Join
+                - "\r\n"
+                - - <?xml version="1.0" encoding="utf-8"?>
+                  - <configuration>
+                  - <configSections>
+                  - <section name="log4net" type="log4net.Config.Log4NetConfigurationSectionHandler,
+                    log4net" />
+                  - </configSections>
+                  - '    <startup>'
+                  - '        <supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.6"/>'
+                  - '    </startup>'
+                  - '  <runtime>'
+                  - '    <assemblyBinding xmlns="urn:schemas-microsoft-com:asm.v1">'
+                  - '      <probing privatePath="bin"/>'
+                  - '    </assemblyBinding>'
+                  - '  </runtime>'
+                  - '  <appSettings>'
+                  - !Sub '    <add key="PIServer" value="PIHostName"/>'
+                  - !Sub '    <add key="AFServer" value="AFHostName"/>'
+                  - '    <add key="Interval" value="1"/>'
+                  - !If
+                    - UseKinesis
+                    - !Sub '    <add key="StreamName" value="${KinesisStreamName}"/>'
+                    - ''
+                  - !Sub '    <add key="EventQueueUrl" value="${IncomingQueueUrl}"/>'
+                  - !Sub '    <add key="BackfillQueueUrl" value="${BackfillQueueURL}"/>'
+                  - !Sub '    <add key="InterpolationQueueUrl" value="${InterpolationQueueURL}"/>'
+                  - !Sub '    <add key="SubscriptionQueueUrl" value="${SubscriptionQueueURL}"/>'
+                  - !Sub '    <add key="ResponseQueueUrl" value="${OutgoingQueueUrl}"/>'
+                  - !Sub '    <add key="Region" value="${AWS::Region}"/>'
+                  - !Sub '    <add key="LogGroup" value="${LogGroupName}"/>'
+                  - !Sub '    <add key="LogStream" value="${ConnectorStream}"/>'
+                  - !Sub '    <add key="AFUser" value="${AFUser}"/>'
+                  - !Sub '    <add key="AFPassword" value="${AFPassword}"/>'
+                  - !Sub '    <add key="AFDomain" value="${AFDomainName}"/>'
+                  - !Sub '    <add key="PIUser" value="${PIUser}"/>'
+                  - !Sub '    <add key="PIPassword" value="${PIPassword}"/>'
+                  - !Sub '    <add key="TopicArn" value="${StateTopicARN}"/>'
+                  - '    <add key="PIServerTimeout" value="15"/>'
+                  - '    <add key="AFServerTimeout" value="15"/>'
+                  - '    <add key="CommaSubstitutionChar" value=" "/>'
+                  - !If
+                    - UseIoT
+                    - !Sub '    <add key="MQTTBrokerHost" value="${MQTTBrokerHost}"/>'
+                    - ''
+                  - !If
+                    - UseIoT
+                    - !Sub '    <add key="MQTTBrokerPort" value="${MQTTBrokerPort}"/>'
+                    - ''
+                  - !If
+                    - UseIoT
+                    - !Sub '    <add key="MQTTTopicPrefix" value="${MQTTTopicPrefix}"/>'
+                    - ''
+                  - !If
+                    - UseIoT
+                    - '    <add key="NumberOfThreads" value="6"/>'
+                    - !Sub '    <add key="NumberOfThreads" value="${AgentNumberOfThreads}"/>'
+                  - '    <add key="BatchSize" value="500" />'
+                  - '    <add key="BatchInterval" value="1000"/>'
+                  - '    <add key="KinesisRecordSize" value="100"/>'
+                  - !Sub '    <add key="MaxConcurrentBackfillJobs" value="${MaxConcurrentBackfillJobs}"/>'
+                  - !Sub '    <add key="MaxConcurrentInterpolationJobs" value="${MaxConcurrentInterpolationJobs}"/>'
+                  - '    <add key="BatchIntervalMilliseconds" value="1000000000"/>'
+                  - '  </appSettings>'
+                  - '  <log4net>'
+                  - <appender name="RollingFile" type="log4net.Appender.RollingFileAppender">
+                  - <encoding value="utf-8" />
+                  - <file value="Logs\CommandLine.Log" />
+                  - <threshold value="ALL" />
+                  - <appendToFile value="true" />
+                  - <rollingStyle value="Composite" />
+                  - <maximumFileSize value="10MB" />
+                  - <maxSizeRollBackups value="10" />
+                  - <datePattern value="yyyyMMdd" />
+                  - <layout type="log4net.Layout.PatternLayout">
+                  - <conversionPattern value="%date{yyyy-MM-dd HH:mm:ss} [%thread]
+                    %level  %message %newline" />
+                  - </layout>
+                  - </appender>
+                  - <appender name="ColoredConsoleAppender" type="log4net.Appender.ColoredConsoleAppender">
+                  - <encoding value="utf-8" />
+                  - <mapping>
+                  - <level value="ERROR" />
+                  - <foreColor value="Red, highintensity" />
+                  - </mapping>
+                  - <mapping>
+                  - <level value="WARN" />
+                  - <foreColor value="Yellow, highintensity" />
+                  - </mapping>
+                  - <mapping>
+                  - <level value="ALL" />
+                  - <foreColor value="Green" />
+                  - </mapping>
+                  - <layout type="log4net.Layout.PatternLayout">
+                  - <conversionPattern value="%date{yyyy-MM-dd HH:mm:ss} [%thread]
+                    %level  %message %newline" />
+                  - </layout>
+                  - </appender>
+                  - <root>
+                  - <level value="INFO" />
+                  - <appender-ref ref="RollingFile" />
+                  - <appender-ref ref="ColoredConsoleAppender" />
+                  - </root>
+                  - </log4net>
+                  - <system.serviceModel>
+                  - <services>
+                  - <service name="PI2AWSConnector.DataPipes.Services.HttpService">
+                  - <endpoint address="http://localhost:80/" binding="webHttpBinding"
+                  - bindingConfiguration="" name="PI2AWSConnector.DataPipes.Services.ConfigService"
+                  - contract="PI2AWSConnector.DataPipes.Services.IHttpService" kind="webHttpEndpoint"
+                  - endpointConfiguration="" />
+                  - </service>
+                  - </services>
+                  - </system.serviceModel>
+                  - </configuration>
+    Properties:
+      IamInstanceProfile: !Ref 'ConnectorAgentInstanceProfileARN'
+      ImageId: !FindInMap
+        - AWSAMIRegionMap
+        - !Ref 'AWS::Region'
+        - WS2016
+      InstanceType: !Ref 'InstanceType'
+      KeyName: !Ref 'KeyName'
+      SecurityGroups:
+        - !Ref 'PI2AWSSecurityGroup'
+      UserData: !Base64
+        Fn::Join:
+          - ''
+          - - "<powershell>\n"
+            - $StackName ="
+            - !Ref 'AWS::StackName'
+            - "\"\n$Region =\""
+            - !Ref 'AWS::Region'
+            - "\"\n$RegionalLambdaBucketName =\""
+            - !Ref 'RegionalLambdaBucketName'
+            - "\"\n$LicensedBinaryKeyPrefix =\""
+            - !Ref 'LicensedSoftwareS3KeyPrefix'
+            - "\"\n"
+            - "Invoke-WebRequest -Uri https://s3.amazonaws.com/aws-cli/AWSCLI64.msi\
+              \ -OutFile C:\\AWSCLI64.msi\n"
+            - "msiexec.exe /i \"c:\\AWSCLI64.msi\" /QN /L*E \"C:\\install-log-awscli.log\"\
+              \ | Out-Null \n"
+            - "& \"C:\\Program Files\\Amazon\\AWSCLI\\aws.exe\" s3 sync s3://$RegionalLambdaBucketName/$LicensedBinaryKeyPrefix\
+              \ C:\\AF-Install-Kit | Out-Default \n"
+            - "\n"
+            - "if (Test-Path \"C:\\AF-Install-Kit\\PI-AF-Client.exe\") {\n"
+            - "    cfn-init.exe -v --stack $StackName --resource PI2AWSConnectorLaunchConfiguration\
+              \ --region $Region\n"
+            - "    Restart-Service AmazonSSMAgent\n"
+            - "    cfn-signal.exe -e $lastExitCode --stack $StackName --resource PI2AWSConnectorAutoScalingGroup\
+              \ --region $Region\n"
+            - "    Restart-Computer -Force\n"
+            - "} else {\n"
+            - "    cfn-signal.exe --success true --stack $StackName --resource PI2AWSConnectorAutoScalingGroup\
+              \ --region $Region\n"
+            - "}\n"
+            - </powershell>
+    Type: AWS::AutoScaling::LaunchConfiguration
+  PI2AWSSecurityGroup:
+    Properties:
+      GroupDescription: Enable RDP
+      SecurityGroupIngress:
+        - CidrIp: !Ref 'RemoteAccessCIDR'
+          FromPort: '3389'
+          IpProtocol: tcp
+          ToPort: '3389'
+        - CidrIp: !Sub '${PIServerIP}/32'
+          FromPort: !Ref 'AFPort'
+          IpProtocol: tcp
+          ToPort: !Ref 'AFPort'
+        - CidrIp: !Sub '${PIServerIP}/32'
+          FromPort: !Ref 'PIPort'
+          IpProtocol: tcp
+          ToPort: !Ref 'PIPort'
+        - FromPort: '80'
+          IpProtocol: tcp
+          SourceSecurityGroupId: !Ref 'ELBSecurityGroup'
+          ToPort: '80'
+      VpcId: !Ref 'VpcId'
+    Type: AWS::EC2::SecurityGroup
+  SubscribedArchivePointsMetricsFilter:
+    Properties:
+      FilterPattern: '{ $.entityName = "archiveSubscriptionPointsMetric"}'
+      LogGroupName: !Ref 'ConnectorLogGroup'
+      MetricTransformations:
+        - MetricName: !Join
+            - '-'
+            - - !Ref 'ConnectorStream'
+              - ArchiveSubscription
+          MetricNamespace: !Ref 'MetricNamespaceName'
+          MetricValue: $.value
+    Type: AWS::Logs::MetricFilter
+  SubscribedSnapshotPointsMetricsFilter:
+    Properties:
+      FilterPattern: '{ $.entityName = "snapshotSubscriptionPointsMetric"}'
+      LogGroupName: !Ref 'ConnectorLogGroup'
+      MetricTransformations:
+        - MetricName: !Join
+            - '-'
+            - - !Ref 'ConnectorStream'
+              - SnapshotSubscription
+          MetricNamespace: !Ref 'MetricNamespaceName'
+          MetricValue: $.value
+    Type: AWS::Logs::MetricFilter

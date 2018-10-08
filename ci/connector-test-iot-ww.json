@@ -28,10 +28,6 @@
     "ParameterValue": "AWS IoT"
   },
   {
-    "ParameterKey": "ECSClusterSize",
-    "ParameterValue": "2"
-  },
-  {
     "ParameterKey": "ElasticsearchNodeCount",
     "ParameterValue": "1"
   },
@@ -49,7 +45,7 @@
   },
   {
     "ParameterKey": "QSDeploymentSuffix",
-    "ParameterValue": "qiotkp"
+    "ParameterValue": "iotww"
   },
   {
     "ParameterKey": "QSS3BucketName",
@@ -93,15 +89,15 @@
   },
   {
     "ParameterKey": "WonderwareDatabaseName",
-    "ParameterValue": "Runtime"
+    "ParameterValue": "foobar"
   },
   {
     "ParameterKey": "WonderwareEndpoint",
-    "ParameterValue": "35.158.128.212"
+    "ParameterValue": "1.1.1.1"
   },
   {
     "ParameterKey": "WonderwarePassword",
-    "ParameterValue": "qwerty123QWERTY"
+    "ParameterValue": "foobar"
   },
   {
     "ParameterKey": "WonderwarePort",
@@ -109,10 +105,6 @@
   },
   {
     "ParameterKey": "WonderwareUsername",
-    "ParameterValue": "janon"
-  },
-  {
-    "ParameterKey": "MQTTTopicPrefix",
-    "ParameterValue": "ww"
+    "ParameterValue": "foobar"
   }
 ]

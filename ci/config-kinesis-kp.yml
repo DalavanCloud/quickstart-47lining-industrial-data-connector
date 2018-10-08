@@ -10,7 +10,7 @@ global:
 tests:
   test-kinesis:
     parameter_input: connector-test-kinesis-kp.json
-    template_file: kepware-industrial-data-connector-master.yaml
+    template_file: kepware-industrial-data-connector-master.template
     regions:
       - us-east-1
       - us-west-2

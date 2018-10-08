@@ -22,7 +22,7 @@ def _create_managed_feeds_application_config(app_name, input_stream_arn, input_s
         column_name=column['column_name'],
         kinesis_type=column['kinesis_type']
     ) for column in additional_columns]
-    columns_string = ',\n                '.join(columns)
+    columns_string = (',' + ',\n                '.join(columns)) if len(columns) > 0 else ''
 
     columns_names_string = [column['column_name'] for column in additional_columns]
     additional_columns_stream_names = [x['column_name'] for x in additional_columns_stream]
@@ -90,26 +90,26 @@ def _create_managed_feeds_application_config(app_name, input_stream_arn, input_s
             CREATE STREAM "MANAGED_FEEDS_ES_OUTPUT" (
                 "name" VARCHAR(64),
                 "value" DOUBLE,
-                "timestamp" VARCHAR(64),
+                "timestamp" VARCHAR(64)
                 {additional_columns}
             );
 
             CREATE STREAM "MANAGED_FEEDS_S3_NUMERIC_OUTPUT" (
                 "name" VARCHAR(64),
                 "value" DOUBLE,
-                "timestamp" VARCHAR(64),
+                "timestamp" VARCHAR(64)
                 {additional_columns}
             );
 
             CREATE STREAM "MANAGED_FEEDS_S3_TEXT_OUTPUT" (
                 "name" VARCHAR(64),
                 "value" VARCHAR(128),
-                "timestamp" VARCHAR(64),
+                "timestamp" VARCHAR(64)
                 {additional_columns}
             );
 
             CREATE PUMP "STREAM_PUMP1" AS INSERT INTO "MANAGED_FEEDS_ES_OUTPUT"
-            SELECT "name", CAST("feed_value" AS DOUBLE), "feed_timestamp",
+            SELECT "name", CAST("feed_value" AS DOUBLE), "feed_timestamp"
               {columns_names_string} {columns_names_string_with_prefix}
             FROM "MANAGED_FEED_INPUT_001" s
             LEFT OUTER JOIN
@@ -120,7 +120,7 @@ def _create_managed_feeds_application_config(app_name, input_stream_arn, input_s
             SELECT STREAM
                 s."name",
                 CAST(s."feed_value" AS DOUBLE),
-                REGEX_REPLACE(s."feed_timestamp", 'T', ' ', 1, 0),
+                REGEX_REPLACE(s."feed_timestamp", 'T', ' ', 1, 0)
                 {columns_names_string} {columns_names_string_with_prefix}
             FROM "MANAGED_FEED_INPUT_001" s
             LEFT OUTER JOIN
@@ -131,7 +131,7 @@ def _create_managed_feeds_application_config(app_name, input_stream_arn, input_s
             SELECT STREAM
                 s."name",
                 "feed_value",
-                REGEX_REPLACE(s."feed_timestamp", 'T', ' ', 1, 0),
+                REGEX_REPLACE(s."feed_timestamp", 'T', ' ', 1, 0)
                 {columns_names_string} {columns_names_string_with_prefix}
             FROM "MANAGED_FEED_INPUT_001" s
             LEFT OUTER JOIN
@@ -148,7 +148,8 @@ def _create_managed_feeds_application_config(app_name, input_stream_arn, input_s
 
 
 def _get_columns_names_string(columns_names_string, additional_columns_stream_names):
-    return ', '.join([f'"{c}"' for c in columns_names_string if c not in additional_columns_stream_names])
+    column_names = [f'"{c}"' for c in columns_names_string if c not in additional_columns_stream_names]
+    return (',' + ', '.join(column_names)) if len(column_names) > 0 else ''
 
 
 def _get_columns_names_string_with_prefix(columns_names_string, additional_columns_stream_names):

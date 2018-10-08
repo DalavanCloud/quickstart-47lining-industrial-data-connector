@@ -6,3 +6,5 @@ venv/
 *.egg-info/
 cache/
 *package-lock.json
+
+.gradle/

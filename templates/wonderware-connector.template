@@ -1,0 +1,168 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Cloudformation template to create ECS service and run Wonderware Connector. **WARNING**
+  You will be billed for the AWS resources used if you create a stack from this template.
+Conditions:
+  UseCustomDockerRepositoryDeployment:
+    !Equals [!Ref UseCustomDockerRepository, Yes]
+Parameters:
+  ECSCluster:
+    Description: ARN of the cluster that you want to run your Amazon ECS service on.
+    Type: String
+  ECSTaskExecutionRoleARN:
+    Description: ECS Task Execution Role
+    Type: String
+  DataTransportService:
+    Type: String
+  IncomingQueueURL:
+    Type: String
+  KinesisStreamName:
+    Type: String
+  MosquittoBrokerHost:
+    Type: String
+  MosquittoBrokerPort:
+    Type: Number
+  MosquittoBrokerTopicPrefix:
+    Type: String
+  OutgoingQueueURL:
+    Type: String
+  BackfillQueueURL:
+    Type: String
+  QSDeploymentSuffix:
+    AllowedPattern: '[a-z0-9]+'
+    ConstraintDescription: Deployment suffix can include numbers, lowercase letters
+      and should have the maximum length of 7 characters.
+    Default: qs
+    Description: You can deploy this Quick Start multiple times in the same region
+      if you provide a different suffix that is added to resource names to make them
+      unique per each deployment. Use this parameter to support deployment of production
+      and test environments in the same region in the same AWS account.
+    MaxLength: 12
+    MinLength: 1
+    Type: String
+  ServiceName:
+    Default: wonderware-connector-agent
+    Description: Name of ECS service
+    Type: String
+  SubscriptionQueueURL:
+    Type: String
+  TaskCount:
+    Description: The number of simultaneous connector agent tasks that you want to run on the
+      cluster.
+    Type: Number
+    Default: 1
+  WonderwareConnectorRoleARN:
+    Type: String
+  WonderwareDatabaseName:
+    Description: Name of historian database in Wonderware
+    Type: String
+  WonderwareEndpoint:
+    Description: Endpoint pointing to Wonderware server
+    Type: String
+  WonderwarePassword:
+    Description: Password to the Wonderware server
+    Type: String
+  WonderwarePort:
+    Description: Port of Wonderware server
+    Type: Number
+  WonderwareUsername:
+    Description: Username to the Wonderware server
+    Type: String
+  WonderwareConnectorDockerTag:
+    Type: String
+    Default: latest
+  FailedFeedsMetricInterval:
+    Description: Milisecond interval for number of unsuccessfully pushed values of feeds metric
+    Type: Number
+    Default: 30000
+  PushedFeedsMetricInterval:
+    Description: Milisecond interval for number of successfully pushed values of feeds metric
+    Type: Number
+    Default: 30000
+  SubscribedFeedsMetricInterval:
+    Description: Milisecond interval for number of subscribed feeds metric
+    Type: Number
+    Default: 60000
+  UseCustomDockerRepository:
+    Type: String
+    AllowedValues:
+    - Yes
+    - No
+Resources:
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${ServiceName}-${QSDeploymentSuffix}'
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref 'ECSCluster'
+      ServiceName: !Ref 'ServiceName'
+      DesiredCount: !Ref 'TaskCount'
+      LaunchType: EC2
+      TaskDefinition: !Ref 'TaskDefinition'
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Environment:
+            - Name: dts
+              Value: !Ref 'DataTransportService'
+            - Name: ww_user
+              Value: !Ref 'WonderwareUsername'
+            - Name: ww_password
+              Value: !Ref 'WonderwarePassword'
+            - Name: ww_url
+              Value: !Ref 'WonderwareEndpoint'
+            - Name: ww_port
+              Value: !Ref 'WonderwarePort'
+            - Name: ww_dbname
+              Value: !Ref 'WonderwareDatabaseName'
+            - Name: region
+              Value: !Sub '${AWS::Region}'
+            - Name: stream_name
+              Value: !Ref 'KinesisStreamName'
+            - Name: mqtt_host
+              Value: !Ref 'MosquittoBrokerHost'
+            - Name: mqtt_port
+              Value: !Ref 'MosquittoBrokerPort'
+            - Name: mqtt_topic_prefix
+              Value: !Ref 'MosquittoBrokerTopicPrefix'
+            - Name: subscription_queue_url
+              Value: !Ref 'SubscriptionQueueURL'
+            - Name: sqs_outgoing_queue
+              Value: !Ref 'OutgoingQueueURL'
+            - Name: sqs_incoming_queues
+              Value: !Ref 'IncomingQueueURL'
+            - Name: sqs_backfill_queues
+              Value: !Ref 'BackfillQueueURL'
+            - Name: failed_feeds_metric_interval
+              Value: !Ref 'FailedFeedsMetricInterval'
+            - Name: failed_feeds_metric_name
+              Value: !Sub '${QSDeploymentSuffix}_FailedFeedsMetric'
+            - Name: failed_feeds_metric_namespace
+              Value: !Sub '${QSDeploymentSuffix}_MetricNamespace'
+            - Name: pushed_feeds_metric_interval
+              Value: !Ref 'PushedFeedsMetricInterval'
+            - Name: pushed_feeds_metric_name
+              Value: !Sub '${QSDeploymentSuffix}_PushedFeedsMetric'
+            - Name: pushed_feeds_metric_namespace
+              Value: !Sub '${QSDeploymentSuffix}_MetricNamespace'
+            - Name: subscribed_feeds_metric_interval
+              Value: !Ref 'SubscribedFeedsMetricInterval'
+            - Name: subscribed_feeds_metric_name
+              Value: !Sub '${QSDeploymentSuffix}_SubscribedFeedsMetric'
+            - Name: subscribed_feeds_metric_namespace
+              Value: !Sub '${QSDeploymentSuffix}_MetricNamespace'
+          Image: !If [UseCustomDockerRepositoryDeployment, !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/wonderware-connector:${WonderwareConnectorDockerTag}', '47lininghome/itsc-ca-wonderware:quickstart']
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref 'LogGroup'
+              awslogs-region: !Sub '${AWS::Region}'
+              awslogs-stream-prefix: ecs
+          MemoryReservation: 512
+          Name: !Sub '${ServiceName}-container'
+      ExecutionRoleArn: !Ref 'ECSTaskExecutionRoleARN'
+      NetworkMode: host
+      TaskRoleArn: !Ref 'WonderwareConnectorRoleARN'

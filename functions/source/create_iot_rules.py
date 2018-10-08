@@ -113,7 +113,7 @@ def lambda_handler(event, _):
                 ],
                 "awsIotSqlVersion": "2016-03-23",
                 "ruleDisabled": False,
-                "sql": f"""SELECT cast(value AS DECIMAL) AS value, name, {additional_columns_names_string}, es_timestamp as timestamp
+                "sql": f"""SELECT cast(value AS DECIMAL) AS value, name {additional_columns_names_string}, es_timestamp as timestamp
                            FROM '{pi_server}/#'
                            WHERE ISUNDEFINED(CAST(value AS DECIMAL)) <> TRUE"""
 

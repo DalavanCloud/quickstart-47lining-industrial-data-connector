@@ -10,7 +10,7 @@ global:
 tests:
   test-kinesis:
     parameter_input: connector-test-kinesis-pi.json
-    template_file: pi-industrial-data-connector-master.yaml
+    template_file: pi-industrial-data-connector-master.template
     regions:
       - us-east-1
       - us-west-2
