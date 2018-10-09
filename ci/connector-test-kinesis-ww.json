@@ -49,11 +49,11 @@
   },
   {
     "ParameterKey": "QSS3BucketName",
-    "ParameterValue": "$[alfred_autobucket]"
+    "ParameterValue": "$[taskcat_autobucket]"
   },
   {
     "ParameterKey": "QSS3KeyPrefix",
-    "ParameterValue": "itsc-quickstart/"
+    "ParameterValue": "quickstart-47lining-industrial-data-connector/"
   },
   {
     "ParameterKey": "RDSUsername",
