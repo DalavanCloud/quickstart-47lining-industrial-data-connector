@@ -1,0 +1,137 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Cloudformation template to create set of Lambda functions to provide autobackfill. **WARNING**
+  You will be billed for the AWS resources used if you create a stack from this template.
+Parameters:
+  SaveStatusLambdaRoleARN:
+    Type: String
+  AutoBackfillerLambdaRoleARN:
+    Type: String
+  VPCID:
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnet1ID:
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2ID:
+    Type: AWS::EC2::Subnet::Id
+  RegionalLambdaBucketName:
+    Type: String
+  StatusSNSTopic:
+    Type: String
+  ElasticsearchHost:
+    Type: String
+  AutobackfillPeriodMinutes:
+    Type: Number
+    Default: 10
+  BackfillQueueUrl:
+    Type: String
+  FeedTableName:
+    Type: String
+    Default: feed
+  DbUsername:
+    Type: String
+  DbPassword:
+    Type: String
+  DbName:
+    Type: String
+  DbHost:
+    Type: String
+  VPCDestroyEniExecutionRoleARN:
+    Type: String
+Resources:
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPCID
+      GroupDescription: LambdaSecurityGroup
+      SecurityGroupIngress: []
+  SaveStatusLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref RegionalLambdaBucketName
+        S3Key: save_status.zip
+      Description: SaveConnectorStatusLambda
+      Environment:
+        Variables:
+          REGION: !Sub '${AWS::Region}'
+          ELASTICSEARCH_HOST: !Ref ElasticsearchHost
+          ELASTICSEARCH_PORT: 443
+      Handler: com.rean47lining.autobackfiller.StatusSaver::handler
+      Role: !Ref SaveStatusLambdaRoleARN
+      Runtime: java8
+      Timeout: 60
+      MemorySize: 512
+  BackfillerLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref RegionalLambdaBucketName
+        S3Key: save_status.zip
+      Description: BackfillerLambda
+      Environment:
+        Variables:
+          REGION: !Sub '${AWS::Region}'
+          ELASTICSEARCH_HOST: !Ref ElasticsearchHost
+          ELASTICSEARCH_PORT: 443
+          AUTOBACKFILL_PERIOD_MINUTES: !Ref AutobackfillPeriodMinutes
+          QUEUE_URL: !Ref BackfillQueueUrl
+          FEED_TABLE_NAME: !Ref FeedTableName
+          DB_USERNAME: !Ref DbUsername
+          DB_PASSWORD: !Ref DbPassword
+          DB_NAME: !Ref DbName
+          DB_HOST: !Ref DbHost
+      Handler: com.rean47lining.autobackfiller.Backfiller::handler
+      Role: !Ref AutoBackfillerLambdaRoleARN
+      Runtime: java8
+      Timeout: 300
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds:
+        - !Ref 'LambdaSecurityGroup'
+        SubnetIds:
+        - !Ref 'PrivateSubnet1ID'
+        - !Ref 'PrivateSubnet2ID'
+  SaveStatusLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt SaveStatusLambda.Arn
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref StatusSNSTopic
+  BackfillerLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt BackfillerLambda.Arn
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt EventRule.Arn
+  Subscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt SaveStatusLambda.Arn
+      Protocol: lambda
+      TopicArn: !Ref StatusSNSTopic
+  EventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: !Sub rate(${AutobackfillPeriodMinutes} minutes)
+      Targets:
+      -
+        Id: AutobackfillScheduler
+        Arn: !GetAtt BackfillerLambda.Arn
+  VPCDestroyENI:
+    Type: Custom::VPCDestroyENI
+    DependsOn: BackfillerLambda
+    Properties:
+      ServiceToken: !GetAtt VPCDestroyENIFunction.Arn
+      SecurityGroups: [!Ref LambdaSecurityGroup]
+  VPCDestroyENIFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: source.vpc_destroy_eni.handler
+      Role: !Ref VPCDestroyEniExecutionRoleARN
+      Timeout: 60
+      Runtime: python3.6
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip

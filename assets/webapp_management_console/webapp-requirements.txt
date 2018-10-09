@@ -1,6 +1,9 @@
 configparser==3.5.0
-flask==0.12.3
-boto3==1.4.6
-SQLAlchemy==1.2.0b3
-psycopg2==2.7.3.2
-flask-sqlalchemy==2.3.2
+flask==0.12.2
+gevent==1.2.2
+gunicorn==19.7.1
+Flask-Injector==0.10.1
+injector==0.13.4
+requests==2.18.4
+warrant==0.6.1
+boto3==1.7.36

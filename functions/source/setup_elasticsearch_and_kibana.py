@@ -5,8 +5,8 @@ import boto3
 
 from source.utils import send_cfnresponse, make_elasticsearch_client
 
-KIBANA_ASSETS_PATH_KINESIS = 'assets/kibana/managed-feeds-visualizations-kinesis.json'
-KIBANA_ASSETS_PATH_IOT = 'assets/kibana/managed-feeds-visualizations-iot.json'
+KIBANA_ASSETS_PATH_KINESIS = 'kibana/managed-feeds-visualizations-kinesis.json'
+KIBANA_ASSETS_PATH_IOT = 'kibana/managed-feeds-visualizations-iot.json'
 
 KIBANA_INDICES_KINESIS = [
     {'name': 'managed_feeds*', 'is_default': True},
@@ -27,15 +27,29 @@ ES_INDICES_TMPL = [
         'template': 'managed_feeds*',
         'settings': {'number_of_shards': 3}
     },
+    {  # Connector statuses
+        'template': 'status*',
+        'settings': {'number_of_shards': 3}
+    }
 ]
+
 
 @send_cfnresponse
 def lambda_handler_kinesis(event, context):
     s3_resource = boto3.resource('s3')
+    elasticsearch_endpoint = None
+    old_elasticsearch_endpoint = None
+    if 'ResourceProperties' in event:
+        properties = event['ResourceProperties']
+        elasticsearch_endpoint = properties.get('ElasticsearchEndpoint')
+    if 'OldResourceProperties' in event:
+        properties = event['OldResourceProperties']
+        old_elasticsearch_endpoint = properties.get('ElasticsearchEndpoint')
     es_client = make_elasticsearch_client(os.environ['ELASTICSEARCH_ENDPOINT'])
     kibana_visualization = _get_kibana_visualization(s3_resource, KIBANA_ASSETS_PATH_KINESIS)
 
-    if event['RequestType'] == 'Create':
+    if event['RequestType'] == 'Create' or \
+            (event['RequestType'] == 'Update' and elasticsearch_endpoint != old_elasticsearch_endpoint):
         _register_index_templates(es_client, ES_INDICES_TMPL)
         _register_indices(es_client, KIBANA_INDICES_KINESIS)
         _register_visuals(es_client, kibana_visualization)
@@ -44,41 +58,80 @@ def lambda_handler_kinesis(event, context):
 @send_cfnresponse
 def lambda_handler_iot(event, context):
     s3_resource = boto3.resource('s3')
+    elasticsearch_endpoint = None
+    old_elasticsearch_endpoint = None
+    if 'ResourceProperties' in event:
+        properties = event['ResourceProperties']
+        elasticsearch_endpoint = properties.get('ElasticsearchEndpoint')
+    if 'OldResourceProperties' in event:
+        properties = event['OldResourceProperties']
+        old_elasticsearch_endpoint = properties.get('ElasticsearchEndpoint')
     es_client = make_elasticsearch_client(os.environ['ELASTICSEARCH_ENDPOINT'])
     kibana_visualization = _get_kibana_visualization(s3_resource, KIBANA_ASSETS_PATH_IOT)
 
-    if event['RequestType'] == 'Create':
+    if event['RequestType'] == 'Create' or \
+            (event['RequestType'] == 'Update' and elasticsearch_endpoint != old_elasticsearch_endpoint):
         _register_index_templates(es_client, ES_INDICES_TMPL)
         _register_indices(es_client, KIBANA_INDICES_IOT)
         _register_visuals(es_client, kibana_visualization)
 
 
-
 def _get_kibana_visualization(s3_resource, kibana_assets_path):
-    qs_s3_bucket, qs_s3_key_prefix = os.environ['QSS3_BUCKET_NAME'], os.environ['QSS3_KEY_PREFIX']
-    kibana_export_key = os.path.join(qs_s3_key_prefix, kibana_assets_path)
+    regional_bucket_name = os.environ['REGIONAL_LAMBDA_BUCKET_NAME']
+    regional_key_prefix = ''
+    kibana_export_key = os.path.join(regional_key_prefix, kibana_assets_path)
 
-    kibana_visualization = s3_resource.Object(qs_s3_bucket, kibana_export_key).get()['Body'].read().decode()
+    kibana_visualization = s3_resource.Object(regional_bucket_name, kibana_export_key).get()['Body'].read().decode()
     return json.loads(kibana_visualization)
 
 
 def _register_indices(es_client, indices):
+    # Initial config must be created first!
+    initial_config = {
+        'type': 'config',
+        'config': {
+            'buildNum': 16108
+        }
+    }
+    es_client.index(index='.kibana', doc_type='doc', id='config:6.0.1', body=json.dumps(initial_config))
+    es_client.indices.refresh('.kibana')
+
     for index in indices:
+        index_pattern = {
+            'type': 'index-pattern',
+            'index-pattern': {
+                'title': index['name'],
+                'timeFieldName': 'timestamp'
+            }
+        }
+        # Kibana uses prefixed ids
+        id = 'index-pattern:' + index['name']
+        es_client.index(index='.kibana', doc_type='doc', id=id, body=json.dumps(index_pattern))
+        es_client.indices.refresh('.kibana')
+
         if index.get('is_default'):
-            default_data = {'defaultIndex': index['name']}
-            es_client.index(index='.kibana', doc_type='config', id='5.1.1', body=json.dumps(default_data))
-        data = {'title': index['name'], 'timeFieldName': 'timestamp'}
-        es_client.index(index='.kibana', doc_type='index-pattern', id=index['name'], body=json.dumps(data))
+            config = {
+                'doc': {
+                    'type': 'config',
+                    'config': {
+                        'defaultIndex': index['name']
+                    }
+                }
+            }
+            es_client.update(index='.kibana', doc_type='doc', id='config:6.0.1', body=json.dumps(config))
 
 
 def _register_visuals(es_client, kibana_visualization):
     for visual in kibana_visualization:
+        visualization = {
+            'type': visual['_type'],
+            visual['_type']: visual['_source']
+        }
         es_client.index(
             index='.kibana',
-            doc_type=visual['_type'],
+            doc_type='doc',
             id=visual['_id'],
-            body=json.dumps(visual['_source'])
-        )
+            body=json.dumps(visualization))
 
 
 def _register_index_templates(es_client, indices_tmpl):

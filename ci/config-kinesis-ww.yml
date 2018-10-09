@@ -1,0 +1,17 @@
+global:
+  marketplace-ami: false
+  owner: quickstart@amazon.com
+  qsname: itsc-quickstart
+  regions:
+    - us-east-1
+    - us-west-2
+    - eu-west-1
+  reporting: true
+tests:
+  test-kinesis:
+    parameter_input: connector-test-kinesis-ww.json
+    template_file: wonderware-industrial-data-connector-master.template
+    regions:
+      - us-east-1
+      - us-west-2
+      - eu-west-1

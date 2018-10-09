@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Cloudformation template to create Lambda that copies
+  licensed binary files into regional bucket. **WARNING**
+  You will be billed for the AWS resources used if you create a stack from this template.
+Parameters:
+  ConnectorAgentAssetsS3BucketName:
+    Type: String
+  ConnectorAgentAssetsS3KeyPrefix:
+    Type: String
+  CompiledAgentKeyPrefix:
+    Type: String
+  CopyLicensedBinaryLambdaRoleARN:
+    Type: String
+  LicensedBinaryDestinationKeyPrefix:
+    Type: String
+  LicensedSoftwareS3BucketName:
+    Type: String
+  LicensedSoftwareS3KeyPrefix:
+    Type: String
+  RegionalLambdaBucketName:
+    Type: String
+Resources:
+  CopyLicensedBinaryFunction:
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Copy licensed binary files to the regional bucket
+      Handler: source.copy_licensed_binary_lambda.handler
+      Role: !Ref 'CopyLicensedBinaryLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 300
+      Environment:
+        Variables:
+          CONNECTOR_AGENT_BUCKET_NAME: !Ref 'ConnectorAgentAssetsS3BucketName'
+          CONNECTOR_AGENT_KEY_PREFIX: !Ref 'ConnectorAgentAssetsS3KeyPrefix'
+          COMPILED_AGENT_KEY_PREFIX: !Ref 'CompiledAgentKeyPrefix'
+          DESTINATION_BUCKET_NAME: !Ref 'RegionalLambdaBucketName'
+          DESTINATION_KEY_PREFIX: !Ref 'LicensedBinaryDestinationKeyPrefix'
+          LICENSED_SOFTWARE_BUCKET_NAME: !Ref 'LicensedSoftwareS3BucketName'
+          LICENSED_SOFTWARE_KEY_PREFIX: !Ref 'LicensedSoftwareS3KeyPrefix'
+    Type: AWS::Lambda::Function
+  CopyLicensedBinaryLambda:
+    Properties:
+      ServiceToken: !GetAtt 'CopyLicensedBinaryFunction.Arn'
+    Type: Custom::CopyLicensedBinaryLambda

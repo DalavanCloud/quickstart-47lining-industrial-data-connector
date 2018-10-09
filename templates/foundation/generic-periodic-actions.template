@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Cloudformation template to create Lambda functions for performing generic periodic actions
+  (it is Managed feeds synchronization and Structure synchronization) **WARNING**
+  You will be billed for the AWS resources used if you create a stack from this template.
+Parameters:
+  IncomingQueueName:
+    Description: Name of incoming SQS queue
+    Type: String
+  RegionalLambdaBucketName:
+    Description: Regional S3 bucket where tha lambda code will be stored
+    Type: String
+  GenericPeriodicLambdaRoleARN:
+    Type: String
+  CleanEventsLambdaRoleARN:
+    Type: String
+  RDSUri:
+    Description: Endpoint for Postgres RDS
+    Type: String
+  PrivateSubnet1ID:
+    Description: Management Console subnet 1
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2ID:
+    Description: Management Console subnet 2
+    Type: AWS::EC2::Subnet::Id
+  VPCID:
+    Description: Management Console server VPC
+    Type: AWS::EC2::VPC::Id
+  MetricNamespaceName:
+    Type: String
+  ConnectorType:
+    Type: String
+Resources:
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref 'VPCID'
+      GroupDescription: LambdaSecurityGroup
+      SecurityGroupIngress: []
+  AsSynchronizationLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Send message to synchronize AS structure
+      Environment:
+        Variables:
+          SQS_IN_QUEUE_NAME: !Ref 'IncomingQueueName'
+          POSTGRES_URI: !Ref 'RDSUri'
+          CONNECTOR_TYPE: !Ref 'ConnectorType'
+      Handler: source.as_sync_lambda.as_sync_handler
+      Role: !Ref 'GenericPeriodicLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref 'LambdaSecurityGroup'
+        SubnetIds:
+          - !Ref 'PrivateSubnet1ID'
+          - !Ref 'PrivateSubnet2ID'
+  FeedsSynchronizationLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Send message to synchronize feeds
+      Environment:
+        Variables:
+          SQS_IN_QUEUE_NAME: !Ref 'IncomingQueueName'
+          POSTGRES_URI: !Ref 'RDSUri'
+          CONNECTOR_TYPE: !Ref 'ConnectorType'
+      Handler: source.feeds_sync_lambda.feeds_sync_handler
+      Role: !Ref 'GenericPeriodicLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref 'LambdaSecurityGroup'
+        SubnetIds:
+          - !Ref 'PrivateSubnet1ID'
+          - !Ref 'PrivateSubnet2ID'
+  CleanEventsLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref 'RegionalLambdaBucketName'
+        S3Key: lambda_deployment_package.zip
+      Description: Send message to synchronize feeds
+      Environment:
+        Variables:
+          POSTGRES_URI: !Ref 'RDSUri'
+          TIMEOUT_DAYS: '5'
+          METRIC_NAMESPACE_NAME: !Ref 'MetricNamespaceName'
+          CONNECTOR_TYPE: !Ref 'ConnectorType'
+      Handler: source.clean_timed_out_events.lambda_handler
+      Role: !Ref 'CleanEventsLambdaRoleARN'
+      Runtime: python3.6
+      Timeout: 30
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref 'LambdaSecurityGroup'
+        SubnetIds:
+          - !Ref 'PrivateSubnet1ID'
+          - !Ref 'PrivateSubnet2ID'
+  AsSynchronizationLambdaInvokeFromEventsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt 'AsSynchronizationLambda.Arn'
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+  FeedsSynchronizationLambdaInvokeFromEventsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt 'FeedsSynchronizationLambda.Arn'
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+  CleanEventsLambdaInvokeFromEventsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt 'CleanEventsLambda.Arn'
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+  CleanEventsLambdaScheduledRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Set status to failure for events stuck in pending for 5 days or
+        more
+      ScheduleExpression: rate(5 days)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt 'CleanEventsLambda.Arn'
+          Id: CleanEventsLambda
+Outputs:
+  AsSynchronizationLambdaARN:
+    Value: !GetAtt 'AsSynchronizationLambda.Arn'
+    Description: AS synchronization lambda arn
+  FeedsSynchronizationLambdaARN:
+    Value: !GetAtt 'FeedsSynchronizationLambda.Arn'
+    Description: Feeds synchronization lambda ARN

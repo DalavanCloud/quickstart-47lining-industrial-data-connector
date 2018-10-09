@@ -1,15 +1,23 @@
 # Management console
 
+# Global dependencies
+
+- Node
+- Watchman (https://facebook.github.io/watchman/)
+- wml (https://github.com/wix/wml)
+
 ## Install dependencies
 
 `npm install`
 
+## Required parameters
+
+- connector_type (allowed values: pi, ww, kp)
+
 ## Build for production
 
-`npm run build`
+`connector_type=[pi|ww|kp] npm run build`
 
-## Usage
+## Run locally
 
-Run flask server
-
-`python webapp_management_console/app.py --config webapp_management_console/development.ini`
+`connector_type=[pi|ww|kp] npm start`

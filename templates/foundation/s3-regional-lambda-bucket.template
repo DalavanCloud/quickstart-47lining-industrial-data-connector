@@ -1,0 +1,36 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS CloudFormation templates to create Regional Lambda S3 bucket
+  that can contain deployment packages. **WARNING**
+  You will be billed for data stored in AWS S3 buckets if you create a stack from this template.
+Parameters:
+  QSDeploymentSuffix:
+    Type: String
+    Default: qs
+    ConstraintDescription: Deployment suffix can include numbers, lowercase letters
+      and should have the maximum length of 7 characters.
+    Description: You can deploy this Quick Start multiple times in the same region
+      if you provide a different suffix that is added to resource names to make them
+      unique per each deployment. Use this parameter to support deployment of production
+      and test environments in the same region in the same AWS account.
+    AllowedPattern: '[a-z0-9]+'
+    MinLength: 1
+    MaxLength: 7
+Resources:
+  RegionalLambdaBucket:
+    Properties:
+      BucketName: !Join
+        - '-'
+        - - regional
+          - lambda
+          - bucket
+          - !Ref 'AWS::AccountId'
+          - !Ref 'AWS::Region'
+          - !Ref 'QSDeploymentSuffix'
+    Type: AWS::S3::Bucket
+Outputs:
+  RegionalLambdaBucketARN:
+    Value: !GetAtt 'RegionalLambdaBucket.Arn'
+    Description: RegionalLambdaBucket bucket ARN
+  RegionalLambdaBucketName:
+    Value: !Ref 'RegionalLambdaBucket'
+    Description: RegionalLambdaBucket bucket name

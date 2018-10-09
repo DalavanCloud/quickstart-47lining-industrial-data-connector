@@ -3,6 +3,7 @@ import boto3
 
 from source.utils import send_cfnresponse
 
+
 @send_cfnresponse
 def lambda_handler(event, context):
     if event['RequestType'] == 'Delete':

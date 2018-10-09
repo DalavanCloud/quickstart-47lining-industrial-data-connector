@@ -1,5 +1,5 @@
 boto3==1.4.6
 aws_requests_auth==0.4.1
-elasticsearch==5.4.0
+elasticsearch==6.2.0
 SQLAlchemy==1.2.0b3
 pyopenssl==17.5.0
